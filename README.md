@@ -1,7 +1,7 @@
 
 ![rarity](https://static.wikia.nocookie.net/p__/images/8/88/Legend_of_everfree_rarity_by_mixiepie_damp88z.png/revision/latest/scale-to-width-down/1000?cb=20200715113754&path-prefix=protagonist)
 
-Rarity is a female unicorn pony and one of the main characters of My Little Pony Friendship is Magic. She is Sweetie Belle's older sister and the subject of Spike's long-term crush. Rarity lives and works at her own shop in Ponyville called the Carousel Boutique, where she takes care of her pet Persian cat Opalescence. She represents the element of generosity.
+Rarity is a unicorn pony and one of the main characters of My Little Pony Friendship is Magic. She is Sweetie Belle's older sister and the subject of Spike's long-term crush. Rarity lives and works at her own shop in Ponyville called the Carousel Boutique, where she takes care of her pet Persian cat Opalescence. She represents the element of generosity.
 
 # Retrieval-Augmented Generation
 
