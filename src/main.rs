@@ -60,9 +60,8 @@ async fn main() -> anyhow::Result<()> {
                 .build()?;
 
   let personality = PersonalityConfig {
-    system_prompt: String::from(
-      iopts.system_prompt
-    ),
+    model: iopts.model,
+    system_prompt: iopts.system_prompt,
     embed_color: 0xFF69B4,
     footer_text: String::from(iopts.footer_text)
   };

@@ -105,7 +105,7 @@ async fn generate_ollama_response( input: &str
   chat_history.push_str(&format!("{}: {}\nAssistant: ", author, input));
 
   let request_body = json!({
-      "model": "deepseek-r1:latest",
+      "model": state.personality.model,
       "system": state.personality.system_prompt,
       "prompt": chat_history,
       "stream": false,

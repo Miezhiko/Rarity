@@ -13,6 +13,7 @@ use tokio::sync::Mutex;
 #[derive(Clone, Deserialize, Debug)]
 pub struct IOptions {
   pub discord: String,
+  pub model: String,
   pub system_prompt: String,
   pub footer_text: String,
   pub allowed_guilds: Vec<u64>
@@ -25,6 +26,7 @@ pub struct ConversationHistory {
 
 #[derive(Clone, Debug)]
 pub struct PersonalityConfig {
+  pub model: String,
   pub system_prompt: String,
   pub embed_color: u32,
   pub footer_text: String
