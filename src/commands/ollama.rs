@@ -19,7 +19,7 @@ fn remove_xml_tags(input: &str) -> String {
   XML_TAG_REGEX.replace_all(input, "").to_string()
 }
 
-pub async fn reply(msg: Message, text: String, state: State) -> anyhow::Result<()> {
+pub async fn reply(msg: Message, text: String, author: String, state: State) -> anyhow::Result<()> {
   tracing::debug!(
       "reply command in channel {} by {}",
       msg.channel_id,
@@ -63,7 +63,7 @@ pub async fn reply(msg: Message, text: String, state: State) -> anyhow::Result<(
     cloned
   };
 
-  let ollama_response = generate_ollama_response(&text, &history, &state).await
+  let ollama_response = generate_ollama_response(&text, &author, &history, &state).await
       .context("Failed to generate response")?;
 
   history.messages.push((text.clone(), ollama_response.clone()));
@@ -95,17 +95,19 @@ pub async fn reply(msg: Message, text: String, state: State) -> anyhow::Result<(
 }
 
 async fn generate_ollama_response( input: &str
+                                 , author: &str
                                  , history: &ConversationHistory
                                  , state: &State ) -> anyhow::Result<String> {
-  let mut prompt = state.personality.system_prompt.clone();
+  let mut chat_history = String::new();
   for (user_msg, bot_response) in &history.messages {
-    prompt.push_str(&format!("User: {}\nAssistant: {}\n", user_msg, bot_response));
+      chat_history.push_str(&format!("{}: {}\nAssistant: {}\n", author, user_msg, bot_response));
   }
-  prompt.push_str(&format!("User: {}\nAssistant: ", input));
+  chat_history.push_str(&format!("{}: {}\nAssistant: ", author, input));
 
   let request_body = json!({
       "model": "deepseek-r1:latest",
-      "prompt": prompt,
+      "system": state.personality.system_prompt,
+      "prompt": chat_history,
       "stream": false,
       "max_tokens": 500,
       "temperature": 0.7

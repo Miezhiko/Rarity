@@ -76,13 +76,14 @@ async fn handle_message(
     Some(_cmd)        => {
       // if msg.author.id.get() == ME
       if let Some((rtext, first)) = contains_mention(msg.content.as_str()) {
+        let author_name = msg.author.name.clone();
         if first {
           match rtext.as_str() {
             "help"     => spawn(help(msg.0, Arc::clone(state))),
-            _cmd       => spawn(ollama::reply(msg.0, rtext, Arc::clone(state)))
+            _cmd       => spawn(ollama::reply(msg.0, rtext, author_name, Arc::clone(state)))
           }
         } else {
-          spawn(ollama::reply(msg.0, rtext, Arc::clone(state)))
+          spawn(ollama::reply(msg.0, rtext, author_name, Arc::clone(state)))
         }
       }
     },
