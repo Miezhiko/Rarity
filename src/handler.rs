@@ -1,0 +1,107 @@
+use crate::{
+  types::common::State,
+  commands::ollama
+};
+
+use std::{
+  error::Error,
+  sync::Arc,
+  future::Future
+};
+
+use twilight_gateway::Event;
+
+use twilight_model::{
+  channel::Message,
+  gateway::payload::incoming::MessageCreate
+};
+
+use once_cell::sync::OnceCell;
+
+// TODO:
+// for admin commands, move to config
+//const ME: u64 = 510368731378089984;
+const BOT: u64 = 1390687119697248458;
+
+static BOT_STRING: OnceCell<&'static str> = OnceCell::new();
+
+fn get_bot_string() -> &'static str {
+  BOT_STRING.get_or_init(|| Box::leak(format!("<@{BOT}>").into_boxed_str()))
+}
+
+fn spawn(fut: impl Future<Output = anyhow::Result<()>> + Send + 'static) {
+  tokio::spawn(async move {
+    if let Err(why) = fut.await {
+      tracing::debug!("handler error: {why:?}");
+    }
+  });
+}
+
+async fn help(msg: Message, state: State) -> anyhow::Result<()> {
+  tracing::debug!(
+    "help command in channel {} by {}",
+    msg.channel_id,
+    msg.author.name
+  );
+  state
+    .http
+    .create_message(msg.channel_id)
+    .reply(msg.id)
+    .content("try to chat with me")
+    .await?;
+  Ok(())
+}
+
+fn contains_mention(text: &str) -> Option<(String, bool)> {
+  let bot_str = get_bot_string();
+  if let Some(pos) = text.find(bot_str) {
+    let clean_text = text.replace(bot_str, "")
+                         .trim().to_string();
+    Some((clean_text, pos == 0))
+  } else {
+    None
+  }
+}
+
+async fn handle_message(
+  msg: Box<MessageCreate>,
+  state: &State
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+  if msg.author.bot {
+    return Ok(());
+  }
+
+  match msg.content.split_whitespace().next() {
+    Some("~help")     => spawn(help(msg.0, Arc::clone(state))),
+    Some(_cmd)        => {
+      // if msg.author.id.get() == ME
+      if let Some((rtext, first)) = contains_mention(msg.content.as_str()) {
+        if first {
+          match rtext.as_str() {
+            "help"     => spawn(help(msg.0, Arc::clone(state))),
+            _cmd       => spawn(ollama::reply(msg.0, rtext, Arc::clone(state)))
+          }
+        } else {
+          spawn(ollama::reply(msg.0, rtext, Arc::clone(state)))
+        }
+      }
+    },
+    None => {}
+  };
+
+  Ok(())
+}
+
+pub async fn handle_event(
+  event: Event,
+  state: State,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+  match event {
+    Event::MessageCreate(msg) => handle_message(msg, &state).await,
+    Event::Ready(_) => {
+      tracing::info!("Shard is ready");
+      Ok(())
+    }
+    _ => Ok(())
+  }
+}

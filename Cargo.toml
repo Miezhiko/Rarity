@@ -1,0 +1,42 @@
+[package]
+name = "rarity"
+version = "0.0.1"
+authors = ["Miezhiko"]
+repository = "https://github.com/Miezhiko/Rarity"
+readme = "README.md"
+keywords = ["discord", "bot"]
+edition = "2021"
+description = "Rarity discord bot"
+license = "QUADROBER"
+rust-version = "1.76.0"
+
+[features]
+default = []
+
+[dependencies]
+anyhow = "*"
+once_cell = "*"
+tracing = "*"
+tracing-subscriber = "*"
+serde = "*"
+serde_derive = "*"
+serde_json = "*"
+serde_dhall = "*"
+twilight-http = "*"
+twilight-gateway = "*"
+twilight-cache-inmemory = "*"
+twilight-model = "*"
+regex = "*"
+
+[dependencies.twilight-util]
+version = "*"
+features = ["builder"]
+
+[dependencies.reqwest]
+version = "*"
+features = ["json", "blocking"]
+
+[dependencies.tokio]
+default-features = false
+features = ["macros", "signal", "rt-multi-thread"]
+version = "*"
