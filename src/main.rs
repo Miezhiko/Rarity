@@ -9,7 +9,7 @@ use crate::types::common::{ StateRef, PersonalityConfig };
 use crate::handler::handle_event;
 
 use std::sync::Arc;
-use std::collections::HashMap;
+use std::collections::{ HashMap, HashSet };
 
 use tokio::sync::Mutex;
 
@@ -26,6 +26,7 @@ use twilight_gateway::{
 };
 
 use twilight_http::client::ClientBuilder;
+use twilight_model::id::{ Id, marker::GuildMarker };
 
 use tracing_subscriber::FmtSubscriber;
 use tracing::Level;
@@ -66,12 +67,18 @@ async fn main() -> anyhow::Result<()> {
     footer_text: String::from(iopts.footer_text)
   };
 
+  let allowed_guilds: HashSet<Id<GuildMarker>> = iopts.allowed_guilds
+      .into_iter()
+      .map(|id| Id::new(id))
+      .collect();
+
   let state = Arc::new(StateRef {
     http,
     request_client,
     generation_lock: Arc::new(tokio::sync::Semaphore::new(1)),
     conversation_history: Arc::new(Mutex::new(HashMap::new())),
-    personality
+    personality,
+    allowed_guilds
   });
 
   tracing::info!("listening events");

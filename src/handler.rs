@@ -97,6 +97,13 @@ pub async fn handle_event(
   state: State,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
   match event {
+    Event::GuildCreate(guild) => {
+      if !state.allowed_guilds.contains(&guild.id()) {
+        state.http.leave_guild(guild.id()).await?;
+        tracing::info!("Left unallowed guild: {}", guild.id());
+      }
+      Ok(())
+    },
     Event::MessageCreate(msg) => handle_message(msg, &state).await,
     Event::Ready(_) => {
       tracing::info!("Shard is ready");
