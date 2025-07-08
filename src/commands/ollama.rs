@@ -11,6 +11,8 @@ use anyhow::Context;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+const HISTORY_LIMIT: usize = 10;
+
 static XML_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
   Regex::new(r"<[^>]+>").expect("Failed to compile regex")
 });
@@ -57,8 +59,8 @@ pub async fn reply(msg: Message, text: String, author: String, state: State) -> 
 
     let mut cloned = entry.clone();
 
-    if cloned.messages.len() > 5 {
-      cloned.messages.drain(0..cloned.messages.len() - 5);
+    if cloned.messages.len() > HISTORY_LIMIT {
+      cloned.messages.drain(0..cloned.messages.len() - HISTORY_LIMIT);
     }
     cloned
   };
