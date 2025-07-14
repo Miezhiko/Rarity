@@ -3,8 +3,8 @@ use crate::{
   state
 };
 
-pub const HISTORY_LIMIT: usize = 10;
-pub const GLOBAL_HISTORY_LIMIT: usize = 10;
+pub const HISTORY_LIMIT: usize = 15;
+pub const GLOBAL_HISTORY_LIMIT: usize = 25;
 
 pub async fn update_global_state(
     text: String,
