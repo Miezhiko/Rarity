@@ -1,6 +1,8 @@
 use crate::{
-  types::common::State,
-  commands::ollama
+  types::state::State,
+  commands::ollama,
+  state,
+  options
 };
 
 use std::{
@@ -18,15 +20,10 @@ use twilight_model::{
 
 use once_cell::sync::OnceCell;
 
-// TODO:
-// for admin commands, move to config
-//const ME: u64 = 510368731378089984;
-const BOT: u64 = 1390687119697248458;
-
 static BOT_STRING: OnceCell<&'static str> = OnceCell::new();
 
 fn get_bot_string() -> &'static str {
-  BOT_STRING.get_or_init(|| Box::leak(format!("<@{BOT}>").into_boxed_str()))
+  BOT_STRING.get_or_init(|| Box::leak(format!("<@{}>", options::CONFIG.bot).into_boxed_str()))
 }
 
 fn spawn(fut: impl Future<Output = anyhow::Result<()>> + Send + 'static) {
@@ -74,9 +71,9 @@ async fn handle_message(
   match msg.content.split_whitespace().next() {
     Some("~help")     => spawn(help(msg.0, Arc::clone(state))),
     Some(_cmd)        => {
-      // if msg.author.id.get() == ME
-      if let Some((rtext, first)) = contains_mention(msg.content.as_str()) {
-        let author_name = msg.author.name.clone();
+      let author_name = msg.author.name.clone();
+      let msg_content = msg.content.clone();
+      if let Some((rtext, first)) = contains_mention(msg_content.as_str()) {
         if first {
           match rtext.as_str() {
             "help"     => spawn(help(msg.0, Arc::clone(state))),
@@ -84,6 +81,18 @@ async fn handle_message(
           }
         } else {
           spawn(ollama::reply(msg.0, rtext, author_name, Arc::clone(state)))
+        }
+      } else {
+        let chance = rand::random::<f32>();
+        if chance <= 0.05 && msg.author.id.get() != options::CONFIG.owner {
+          spawn(ollama::speak( msg.0
+                             , msg_content
+                             , author_name
+                             , Arc::clone(state)) )
+        } else {
+          spawn(state::update_global_state( msg_content
+                                          , author_name
+                                          , Arc::clone(state)));
         }
       }
     },

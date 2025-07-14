@@ -1,4 +1,8 @@
-use crate::types::common::{ State, ConversationHistory };
+use crate::{
+  types::state::{ State, ConversationHistory },
+  state,
+  options
+};
 
 use twilight_model::channel::Message;
 use twilight_util::builder::embed::{
@@ -11,8 +15,6 @@ use anyhow::Context;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-const HISTORY_LIMIT: usize = 10;
-
 static XML_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
   Regex::new(r"<[^>]+>").expect("Failed to compile regex")
 });
@@ -21,7 +23,52 @@ fn remove_xml_tags(input: &str) -> String {
   XML_TAG_REGEX.replace_all(input, "").to_string()
 }
 
-pub async fn reply(msg: Message, text: String, author: String, state: State) -> anyhow::Result<()> {
+pub async fn speak( msg: Message
+                  , text: String
+                  , author: String
+                  , state: State ) -> anyhow::Result<()> {
+  tracing::debug!("speak command in channel {} by {}",
+    msg.channel_id,
+    msg.author.name
+  );
+
+  let permit = match state.generation_lock.try_acquire() {
+    Ok(p) => p,
+    Err(_) => {
+      return Ok(());
+    }
+  };
+
+  let history_lock = state.global_conversation_history.lock().await;
+  let ollama_response = generate_ollama_with_chat(&text, &author, &history_lock, &state).await
+      .context("Failed to generate response")?;
+
+  let embed = EmbedBuilder::new()
+      .description(ollama_response)
+      .color(0xFF69B4)
+      .footer(
+          EmbedFooterBuilder::new(&options::CONFIG.footer_text)
+              .build()
+      )
+      .timestamp(msg.timestamp)
+      .build();
+
+  state.http
+      .create_message(msg.channel_id)
+      .embeds(&[embed])
+      .reply(msg.id)
+      .await
+      .context("Failed to send Discord message")?;
+
+  drop(permit);
+
+  Ok(())
+}
+
+pub async fn reply( msg: Message
+                  , text: String
+                  , author: String
+                  , state: State ) -> anyhow::Result<()> {
   tracing::debug!(
       "reply command in channel {} by {}",
       msg.channel_id,
@@ -33,9 +80,9 @@ pub async fn reply(msg: Message, text: String, author: String, state: State) -> 
     Err(_) => {
       let busy_embed = EmbedBuilder::new()
           .description("I'm super busy throwing a party for another request! 🎉 Try again in ten minutes, okay?")
-          .color(state.personality.embed_color)
+          .color(0xFF69B4)
           .footer(
-              EmbedFooterBuilder::new(&state.personality.footer_text)
+              EmbedFooterBuilder::new(&options::CONFIG.footer_text)
                   .build()
           )
           .timestamp(msg.timestamp)
@@ -59,13 +106,13 @@ pub async fn reply(msg: Message, text: String, author: String, state: State) -> 
 
     let mut cloned = entry.clone();
 
-    if cloned.messages.len() > HISTORY_LIMIT {
-      cloned.messages.drain(0..cloned.messages.len() - HISTORY_LIMIT);
+    if cloned.messages.len() > state::HISTORY_LIMIT {
+      cloned.messages.drain(0..cloned.messages.len() - state::HISTORY_LIMIT);
     }
     cloned
   };
 
-  let ollama_response = generate_ollama_response(&text, &author, &history, &state).await
+  let ollama_response = generate_ollama_with_history(&text, &author, &history, &state).await
       .context("Failed to generate response")?;
 
   history.messages.push((text.clone(), ollama_response.clone()));
@@ -76,9 +123,9 @@ pub async fn reply(msg: Message, text: String, author: String, state: State) -> 
 
   let embed = EmbedBuilder::new()
       .description(ollama_response)
-      .color(state.personality.embed_color)
+      .color(0xFF69B4)
       .footer(
-          EmbedFooterBuilder::new(&state.personality.footer_text)
+          EmbedFooterBuilder::new(&options::CONFIG.footer_text)
               .build()
       )
       .timestamp(msg.timestamp)
@@ -96,20 +143,36 @@ pub async fn reply(msg: Message, text: String, author: String, state: State) -> 
   Ok(())
 }
 
-async fn generate_ollama_response( input: &str
-                                 , author: &str
-                                 , history: &ConversationHistory
-                                 , state: &State ) -> anyhow::Result<String> {
+async fn generate_ollama_with_history( input: &str
+                                     , author: &str
+                                     , history: &ConversationHistory
+                                     , state: &State ) -> anyhow::Result<String> {
   let mut chat_history = String::new();
   for (user_msg, bot_response) in &history.messages {
-      chat_history.push_str(&format!("{}: {}\nAssistant: {}\n", author, user_msg, bot_response));
+    chat_history.push_str(&format!("{}: {}\nAssistant: {}\n", author, user_msg, bot_response));
   }
   chat_history.push_str(&format!("{}: {}\nAssistant: ", author, input));
+  generate_ollama_response(chat_history.as_str(), state).await
+}
 
+async fn generate_ollama_with_chat( input: &str
+                                  , author: &str
+                                  , chat: &ConversationHistory
+                                  , state: &State ) -> anyhow::Result<String> {
+  let mut chat_history = String::new();
+  for (author, message) in &chat.messages {
+    chat_history.push_str(&format!("{}: {}", author, message));
+  }
+  chat_history.push_str(&format!("{}: {}\nAssistant: ", author, input));
+  generate_ollama_response(chat_history.as_str(), state).await
+}
+
+async fn generate_ollama_response( prompt: &str
+                                 , state: &State ) -> anyhow::Result<String> {
   let request_body = json!({
-      "model": state.personality.model,
-      "system": state.personality.system_prompt,
-      "prompt": chat_history,
+      "model": options::CONFIG.model,
+      "system": options::CONFIG.system_prompt,
+      "prompt": prompt,
       "stream": false,
       "max_tokens": 500,
       "temperature": 0.7

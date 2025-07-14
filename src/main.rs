@@ -1,11 +1,13 @@
+#[allow(unused_imports)]
 #[macro_use] extern crate anyhow;
 
 mod types;
 mod options;
+mod state;
 mod handler;
 mod commands;
 
-use crate::types::common::{ StateRef, PersonalityConfig };
+use crate::types::state::{ StateRef, ConversationHistory };
 use crate::handler::handle_event;
 
 use std::sync::Arc;
@@ -33,9 +35,6 @@ use tracing::Level;
 
 #[tokio::main(worker_threads=16)]
 async fn main() -> anyhow::Result<()> {
-  let iopts = options::get_ioptions()
-                .map_err(|e| anyhow!("Failed to parse Dhall config {e}"))?;
-
   let subscriber = FmtSubscriber::builder()
     .with_max_level(Level::INFO)
     .finish();
@@ -43,12 +42,12 @@ async fn main() -> anyhow::Result<()> {
 
   let mut shard = Shard::new(
     ShardId::ONE,
-    iopts.discord.clone(),
+    options::CONFIG.discord.clone(),
     Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT,
   );
 
   let http = ClientBuilder::new()
-                           .token(iopts.discord)
+                           .token(options::CONFIG.discord.clone())
                            .build();
 
   let cache = DefaultInMemoryCache::builder()
@@ -59,14 +58,7 @@ async fn main() -> anyhow::Result<()> {
                 .pool_max_idle_per_host(0)
                 .build()?;
 
-  let personality = PersonalityConfig {
-    model: iopts.model,
-    system_prompt: iopts.system_prompt,
-    embed_color: 0xFF69B4,
-    footer_text: String::from(iopts.footer_text)
-  };
-
-  let allowed_guilds: HashSet<Id<GuildMarker>> = iopts.allowed_guilds
+  let allowed_guilds: HashSet<Id<GuildMarker>> = options::CONFIG.allowed_guilds.clone()
       .into_iter()
       .map(|id| Id::new(id))
       .collect();
@@ -76,7 +68,9 @@ async fn main() -> anyhow::Result<()> {
     request_client,
     generation_lock: Arc::new(tokio::sync::Semaphore::new(1)),
     conversation_history: Arc::new(Mutex::new(HashMap::new())),
-    personality,
+    global_conversation_history: Arc::new(Mutex::new(
+      ConversationHistory { messages: Vec::new() }
+    )),
     allowed_guilds
   });
 

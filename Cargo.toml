@@ -1,6 +1,6 @@
 [package]
 name = "rarity"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["Miezhiko"]
 repository = "https://github.com/Miezhiko/Rarity"
 readme = "README.md"
@@ -27,6 +27,7 @@ twilight-gateway = "*"
 twilight-cache-inmemory = "*"
 twilight-model = "*"
 regex = "*"
+rand = "*"
 
 [dependencies.twilight-util]
 version = "*"
