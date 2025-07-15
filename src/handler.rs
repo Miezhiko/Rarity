@@ -1,6 +1,6 @@
 use crate::{
   types::state::State,
-  commands::ollama,
+  commands::reply,
   state,
   options
 };
@@ -77,15 +77,15 @@ async fn handle_message(
         if first {
           match rtext.as_str() {
             "help"     => spawn(help(msg.0, Arc::clone(state))),
-            _cmd       => spawn(ollama::reply(msg.0, rtext, author_name, Arc::clone(state)))
+            _cmd       => spawn(reply::reply(msg.0, rtext, author_name, Arc::clone(state)))
           }
         } else {
-          spawn(ollama::reply(msg.0, rtext, author_name, Arc::clone(state)))
+          spawn(reply::reply(msg.0, rtext, author_name, Arc::clone(state)))
         }
       } else {
         let chance = rand::random::<f32>();
         if chance <= 0.05 && msg.author.id.get() != options::CONFIG.owner {
-          spawn(ollama::speak( msg.0
+          spawn(reply::speak( msg.0
                              , msg_content
                              , author_name
                              , Arc::clone(state)) )

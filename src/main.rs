@@ -5,6 +5,7 @@ mod types;
 mod options;
 mod state;
 mod handler;
+mod ollama;
 mod commands;
 
 use crate::types::state::{ StateRef, ConversationHistory };
