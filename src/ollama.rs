@@ -23,9 +23,9 @@ pub async fn generate_ollama_with_history( input: &str
                                          , state: &State ) -> anyhow::Result<String> {
   let mut chat_history = String::new();
   for (user_msg, bot_response) in &history.messages {
-    chat_history.push_str(&format!("{}: {}\nAssistant: {}\n", author, user_msg, bot_response));
+    chat_history.push_str(&format!("{author}: {user_msg}\nAssistant: {bot_response}\n"));
   }
-  chat_history.push_str(&format!("{}: {}\nAssistant: ", author, input));
+  chat_history.push_str(&format!("{author}: {input}\nAssistant: "));
   generate_ollama_response(chat_history.as_str(), state).await
 }
 
@@ -35,9 +35,9 @@ pub async fn generate_ollama_with_chat( input: &str
                                       , state: &State ) -> anyhow::Result<String> {
   let mut chat_history = String::new();
   for (author, message) in &chat.messages {
-    chat_history.push_str(&format!("{}: {}", author, message));
+    chat_history.push_str(&format!("{author}: {message}"));
   }
-  chat_history.push_str(&format!("{}: {}\nAssistant: ", author, input));
+  chat_history.push_str(&format!("{author}: {input}\nAssistant: "));
   generate_ollama_response(chat_history.as_str(), state).await
 }
 
