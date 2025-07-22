@@ -68,6 +68,12 @@ async fn handle_message(
     return Ok(());
   }
 
+    // Check if the channel is in restricted_channels list
+  let channel_id = msg.channel_id.get();
+  if options::CONFIG.restricted_channels.contains(&channel_id) {
+    return Ok(());
+  }
+
   match msg.content.split_whitespace().next() {
     Some("~help")     => spawn(help(msg.0, Arc::clone(state))),
     Some(_cmd)        => {
