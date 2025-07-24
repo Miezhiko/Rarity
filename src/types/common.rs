@@ -4,6 +4,7 @@ use serde::Deserialize;
 pub struct IOptions {
   pub discord: String,
   pub model: String,
+  pub bot_name: String,
   pub system_prompt: String,
   pub footer_text: String,
   pub allowed_guilds: Vec<u64>,
