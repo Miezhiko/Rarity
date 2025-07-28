@@ -1,2 +1,6 @@
 /target
 *.dhall
+*.hi
+*.o
+*.exe
+hake
