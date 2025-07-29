@@ -89,11 +89,11 @@ async fn handle_message(
         }
       } else {
         let chance = rand::random::<f32>();
-        if chance <= 0.05 && msg.author.id.get() != options::CONFIG.owner {
+        if chance <= 0.02 && msg.author.id.get() != options::CONFIG.owner {
           spawn(reply::speak( msg.0
-                             , msg_content
-                             , author_name
-                             , Arc::clone(state)) )
+                            , msg_content
+                            , author_name
+                            , Arc::clone(state)) )
         } else {
           spawn(state::update_global_state( msg_content
                                           , author_name
