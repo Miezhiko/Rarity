@@ -76,7 +76,19 @@ async fn handle_message(
   match msg.content.split_whitespace().next() {
     Some("~help")     => spawn(help(msg.0, Arc::clone(state))),
     Some(_cmd)        => {
-      let author_name = msg.author.name.clone();
+      let author_name = match msg.guild_id {
+        Some(guild_id) => {
+          match state.http.guild_member(guild_id, msg.author.id).await {
+            Ok(member_response) => {
+              member_response.model().await
+                .map(|member| member.nick.unwrap_or_else(|| msg.author.name.clone()))
+                .unwrap_or_else(|_| msg.author.name.clone())
+            }
+            Err(_) => msg.author.name.clone()
+          }
+        }
+        None => msg.author.name.clone()
+      };
       let msg_content = msg.content.clone();
       if let Some((rtext, first)) = contains_mention(msg_content.as_str()) {
         if first {
