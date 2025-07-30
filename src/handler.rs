@@ -18,9 +18,13 @@ use twilight_model::{
   gateway::payload::incoming::MessageCreate
 };
 
+use twilight_http::request::channel::reaction::RequestReactionType;
+
 use once_cell::sync::OnceCell;
 
 static BOT_STRING: OnceCell<&'static str> = OnceCell::new();
+
+static HEART: &str = "❤️";
 
 fn get_bot_string() -> &'static str {
   BOT_STRING.get_or_init(|| Box::leak(format!("<@{}>", options::CONFIG.bot).into_boxed_str()))
@@ -102,6 +106,12 @@ async fn handle_message(
       } else {
         let chance = rand::random::<f32>();
         if chance <= 0.02 && msg.author.id.get() != options::CONFIG.owner {
+          state.http.create_reaction(
+            msg.channel_id,
+            msg.id,
+            &RequestReactionType::Unicode { name: HEART }
+          )
+          .await?;
           spawn(reply::speak( msg.0
                             , msg_content
                             , author_name
