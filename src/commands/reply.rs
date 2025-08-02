@@ -22,6 +22,7 @@ async fn try_acquire_permit<'a>(state: &'a State, msg: &Message) ->
         .description("Я занята, напиши минут через десять!")
         .color(0xFF69B4)
         .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
+        .timestamp(msg.timestamp)
         .build();
 
       state.http
@@ -41,6 +42,7 @@ async fn send_response(state: &State, msg: &Message, response: &str) -> anyhow::
     .description(response)
     .color(0xFF69B4)
     .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
+    .timestamp(msg.timestamp)
     .build();
 
   state.http
