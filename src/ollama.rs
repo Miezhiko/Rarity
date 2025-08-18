@@ -1,5 +1,5 @@
 use crate::{
-  types::state::{ State, ConversationHistory },
+  types::state::{ State, ConversationHistory, GlobalConversationHistory },
   options
 };
 
@@ -22,8 +22,9 @@ pub async fn generate_ollama_with_history( input: &str
                                          , history: &ConversationHistory
                                          , state: &State ) -> anyhow::Result<String> {
   let mut chat_history = String::new();
-  for (user_msg, bot_response) in &history.messages {
-    chat_history.push_str(&format!("{author}: {user_msg}\n{}: {bot_response}\n", &options::CONFIG.bot_name));
+  for (msg_autor, user_msg, bot_response) in &history.messages {
+    chat_history.push_str(&format!("{msg_autor}: {user_msg}\n{}: {bot_response}\n"
+                                  , &options::CONFIG.bot_name));
   }
   chat_history.push_str(&format!("{author}: {input}\n{}: ", &options::CONFIG.bot_name));
   generate_ollama_response(chat_history.as_str(), state).await
@@ -31,7 +32,7 @@ pub async fn generate_ollama_with_history( input: &str
 
 pub async fn generate_ollama_with_chat( input: &str
                                       , author: &str
-                                      , chat: &ConversationHistory
+                                      , chat: &GlobalConversationHistory
                                       , state: &State ) -> anyhow::Result<String> {
   let mut chat_history = String::new();
   for (author, message) in &chat.messages {

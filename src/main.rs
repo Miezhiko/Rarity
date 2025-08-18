@@ -8,7 +8,7 @@ mod handler;
 mod ollama;
 mod commands;
 
-use crate::types::state::{ StateRef, ConversationHistory };
+use crate::types::state::{ StateRef, GlobalConversationHistory };
 use crate::handler::handle_event;
 
 use std::sync::Arc;
@@ -70,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
     generation_lock: Arc::new(tokio::sync::Semaphore::new(1)),
     conversation_history: Arc::new(Mutex::new(HashMap::new())),
     global_conversation_history: Arc::new(Mutex::new(
-      ConversationHistory { messages: Vec::new() }
+      GlobalConversationHistory { messages: Vec::new() }
     )),
     allowed_guilds
   });

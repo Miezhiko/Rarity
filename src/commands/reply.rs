@@ -109,7 +109,7 @@ pub async fn reply(
     .await
     .context("Failed to generate response")?;
 
-  history.messages.push((text.clone(), response.clone()));
+  history.messages.push((author.clone(), text.clone(), response.clone()));
   {
     let mut history_lock = state.conversation_history.lock().await;
     history_lock.insert(msg.channel_id.to_string(), history);

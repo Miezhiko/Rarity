@@ -10,7 +10,17 @@ use tokio::sync::Mutex;
 
 #[derive(Clone, Debug)]
 pub struct ConversationHistory {
-  pub messages: Vec<(String, String)>
+  pub messages: Vec<( String
+                    , String
+                    , String
+                    )>
+}
+
+#[derive(Clone, Debug)]
+pub struct GlobalConversationHistory {
+  pub messages: Vec<( String
+                    , String
+                    )>
 }
 
 #[derive(Debug)]
@@ -19,7 +29,7 @@ pub struct StateRef {
   pub request_client: Reqwest,
   pub generation_lock: Arc<tokio::sync::Semaphore>,
   pub conversation_history: Arc<Mutex<HashMap<String, ConversationHistory>>>,
-  pub global_conversation_history: Arc<Mutex<ConversationHistory>>,
+  pub global_conversation_history: Arc<Mutex<GlobalConversationHistory>>,
   pub allowed_guilds: HashSet<Id<GuildMarker>>
 }
 
