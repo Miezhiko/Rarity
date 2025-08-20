@@ -15,6 +15,7 @@ use std::sync::Arc;
 use std::collections::{ HashMap, HashSet };
 
 use tokio::sync::Mutex;
+use smallvec::SmallVec;
 
 use twilight_cache_inmemory::{
   DefaultInMemoryCache,
@@ -70,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
     generation_lock: Arc::new(tokio::sync::Semaphore::new(1)),
     conversation_history: Arc::new(Mutex::new(HashMap::new())),
     global_conversation_history: Arc::new(Mutex::new(
-      GlobalConversationHistory { messages: Vec::new() }
+      GlobalConversationHistory { messages: SmallVec::new() }
     )),
     allowed_guilds
   });

@@ -20,7 +20,7 @@ pub async fn update_global_state(
     history_lock.messages.drain(0..drain_amount);
   }
   
-  history_lock.messages.push((author, text));
+  history_lock.messages.push((author.into(), text.into()));
   
   Ok(())
 }

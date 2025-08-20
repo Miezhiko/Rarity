@@ -12,6 +12,7 @@ use twilight_util::builder::embed::{
 };
 
 use anyhow::Context;
+use smallvec::SmallVec;
 
 async fn try_acquire_permit<'a>(state: &'a State, msg: &Message) ->
     anyhow::Result<Option<tokio::sync::SemaphorePermit<'a>>> {
@@ -95,7 +96,7 @@ pub async fn reply(
   let mut history = {
     let mut history_lock = state.conversation_history.lock().await;
     let entry = history_lock.entry(msg.channel_id.to_string())
-      .or_insert_with(|| ConversationHistory { messages: Vec::new() });
+      .or_insert_with(|| ConversationHistory { messages: SmallVec::new() });
 
     let mut cloned = entry.clone();
 
@@ -109,7 +110,7 @@ pub async fn reply(
     .await
     .context("Failed to generate response")?;
 
-  history.messages.push((author.clone(), text.clone(), response.clone()));
+  history.messages.push((author.into(), text.into(), response.clone().into()));
   {
     let mut history_lock = state.conversation_history.lock().await;
     history_lock.insert(msg.channel_id.to_string(), history);
