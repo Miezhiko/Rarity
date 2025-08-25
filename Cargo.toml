@@ -1,6 +1,6 @@
 [package]
 name = "rarity"
-version = "0.0.13"
+version = "0.1.0"
 authors = ["Miezhiko"]
 repository = "https://github.com/Miezhiko/Rarity"
 readme = "README.md"
@@ -30,6 +30,7 @@ serde_dhall = "*"
 regex = "*"
 rand = "*"
 smallvec = "*"
+async-recursion = "*"
 
 [dependencies.twilight-util]
 git = "https://github.com/twilight-rs/twilight"
