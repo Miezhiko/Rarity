@@ -49,8 +49,8 @@ async fn main() -> anyhow::Result<()> {
   );
 
   let http = ClientBuilder::new()
-                           .token(options::CONFIG.discord.clone())
-                           .build();
+                .token(options::CONFIG.discord.clone())
+                .build();
 
   let cache = DefaultInMemoryCache::builder()
                 .resource_types(ResourceType::MESSAGE)
@@ -61,9 +61,9 @@ async fn main() -> anyhow::Result<()> {
                 .build()?;
 
   let allowed_guilds: HashSet<Id<GuildMarker>> = options::CONFIG.allowed_guilds.clone()
-      .into_iter()
-      .map(|id| Id::new(id))
-      .collect();
+                .into_iter()
+                .map(|id| Id::new(id))
+                .collect();
 
   let state = Arc::new(StateRef {
     http,

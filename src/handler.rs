@@ -1,6 +1,6 @@
 use crate::{
   types::state::State,
-  commands::reply,
+  commands::{ reply, speak },
   state,
   options
 };
@@ -112,7 +112,7 @@ async fn handle_message(
             &RequestReactionType::Unicode { name: HEART }
           )
           .await?;
-          spawn(reply::speak( msg.0
+          spawn(speak::speak( msg.0
                             , msg_content
                             , author_name
                             , Arc::clone(state)) )
