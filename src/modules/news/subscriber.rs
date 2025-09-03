@@ -17,6 +17,7 @@ use tokio;
 
 use twilight_model::id::{Id, marker::{ChannelMarker}};
 use tracing::{info, warn, error};
+use twilight_model::util::Timestamp;
 
 use twilight_util::builder::embed::{
   EmbedBuilder,
@@ -210,11 +211,21 @@ impl RssSubscriber {
       ollama::generate_ollama_response(&message_desc, state).await?;
 
     let title_no_q = remove_quotes(&rarity_response_title);
+    let timestamp_secs = item.published_timestamp as i64;
+    let timestamp = Timestamp::from_secs(timestamp_secs)
+        .unwrap_or_else(|_| {
+            let now_secs = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64;
+            Timestamp::from_secs(now_secs).unwrap()
+        });
 
     let embed = EmbedBuilder::new()
       .title(&title_no_q)
       .description(&rarity_response_desc)
       .color(0xFF69B4)
+      .timestamp(timestamp)
       .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
       .build();
 
