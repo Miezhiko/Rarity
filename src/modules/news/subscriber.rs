@@ -219,9 +219,11 @@ impl RssSubscriber {
       format!(". А ещё важно: {}", remaining.join(", "))
     };
 
+    let full_news = format!("{}{remaining_titles_str}", &item.description);
+
     let message_desc = format!(
-      "{}: {}{}",
-      &options::CONFIG.desc_mod_msg, &item.description, &remaining_titles_str
+      "{}: {}",
+      &options::CONFIG.desc_mod_msg, &full_news
     );
 
     let rarity_response_title =
@@ -255,7 +257,7 @@ impl RssSubscriber {
       .await?;
     
     unsafe {
-      options::GLOBAL.last_news = item.description.clone();
+      options::GLOBAL.last_news = full_news;
     }
 
     info!("Posted news to Discord: {}", item.title);
