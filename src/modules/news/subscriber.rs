@@ -9,8 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use reqwest;
-
 use feed_rs::parser;
 
 use tokio;
@@ -72,7 +70,7 @@ impl RssSubscriber {
           }
         }
 
-        match rt.block_on(Self::fetch_rss()) {
+        match rt.block_on(Self::fetch_rss(&state)) {
           Ok(current_items) => {
             let new_items = {
               let mut last_items_guard = last_items.lock().unwrap();
@@ -93,16 +91,18 @@ impl RssSubscriber {
 
             if !new_items.is_empty() {
               info!("Found {} new news, taking very first", new_items.len());
-                let remaining_titles: Vec<String> = new_items
-                                                    .iter()
-                                                    .skip(1)
-                                                    .map(|item| item.title.clone())
-                                                    .collect();
+              
+              let remaining_titles: Vec<String> = new_items
+                .iter()
+                .skip(1)
+                .map(|item| item.title.clone())
+                .collect();
+                
               if let Some(item) = new_items.first() {
                 if let Err(e) = rt.block_on(Self::post_to_discord( &state
                                                                  , channel_id
                                                                  , &item
-                                                                 , remaining_titles )) {
+                                                                 , &remaining_titles )) {
                   error!("Failed to post tweet to Discord: {}", e);
                 }
               }
@@ -126,8 +126,7 @@ impl RssSubscriber {
     info!("Stopping RSS subscriber...");
   }
 
-
-  async fn fetch_rss() -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
+  async fn fetch_rss(state: &State) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
     let news_instances = vec![
       "https://www.themoscowtimes.com/rss/news",
       "https://lenta.ru/rss/google-newsstand/main",
@@ -138,7 +137,7 @@ impl RssSubscriber {
           , successful_fetches = 0 };
 
     for rss_url in &news_instances {
-      match Self::try_fetch_from_instance(&rss_url).await {
+      match Self::try_fetch_from_instance(state, &rss_url).await {
         Ok(items) => {
           info!("Successfully fetched {} items from: {}", items.len(), &rss_url);
           all_items.extend(items);
@@ -158,12 +157,8 @@ impl RssSubscriber {
     }
   }
 
-  async fn try_fetch_from_instance(rss_url: &str) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
-    let client = reqwest::Client::builder()
-      .timeout(Duration::from_secs(60))
-      .build()?;
-
-    let response = client
+  async fn try_fetch_from_instance(state: &State, rss_url: &str) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
+    let response = state.request_client
       .get(rss_url)
       .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
       .header("Accept", "application/rss+xml, application/xml, text/xml")
@@ -211,17 +206,18 @@ impl RssSubscriber {
     state: &State,
     channel_id: Id<ChannelMarker>, 
     item: &FeedItem,
-    remaining: Vec<String>
+    remaining: &[String]
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let message_title = format!(
       "{}: {}",
       &options::CONFIG.title_mod_msg, &item.title
     );
 
-    let mut remaining_titles_str = String::new();
-    if !remaining.is_empty() {
-      remaining_titles_str = format!(". А ещё важно: {}", remaining.join(", "));
-    }
+    let remaining_titles_str = if remaining.is_empty() {
+      String::new()
+    } else {
+      format!(". А ещё важно: {}", remaining.join(", "))
+    };
 
     let message_desc = format!(
       "{}: {}{}",
