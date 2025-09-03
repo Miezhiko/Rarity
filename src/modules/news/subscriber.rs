@@ -120,26 +120,36 @@ impl RssSubscriber {
     info!("Stopping RSS subscriber...");
   }
 
+
   async fn fetch_rss() -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
     let news_instances = vec![
       "https://www.themoscowtimes.com/rss/news",
       "https://lenta.ru/rss/google-newsstand/main",
       "https://meduza.io/rss/all"
     ];
-    
+
+    setm! { all_items = Vec::new()
+          , successful_fetches = 0 };
+
     for rss_url in &news_instances {
       match Self::try_fetch_from_instance(&rss_url).await {
         Ok(items) => {
           info!("Successfully fetched {} items from: {}", items.len(), &rss_url);
-          return Ok(items);
+          all_items.extend(items);
+          successful_fetches += 1;
         }
         Err(e) => {
           warn!("Failed to fetch from {}: {}", &rss_url, e);
         }
       }
     }
-    
-    Err("All nitter instances failed".into())
+
+    if successful_fetches > 0 {
+      info!("Total items fetched from {} sources: {}", successful_fetches, all_items.len());
+      Ok(all_items)
+    } else {
+      Err("All RSS instances failed".into())
+    }
   }
 
   async fn try_fetch_from_instance(rss_url: &str) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
