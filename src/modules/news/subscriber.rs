@@ -93,10 +93,16 @@ impl RssSubscriber {
 
             if !new_items.is_empty() {
               info!("Found {} new news, taking very first", new_items.len());
+                let remaining_titles: Vec<String> = new_items
+                                                    .iter()
+                                                    .skip(1)
+                                                    .map(|item| item.title.clone())
+                                                    .collect();
               if let Some(item) = new_items.first() {
                 if let Err(e) = rt.block_on(Self::post_to_discord( &state
-                                                                , channel_id
-                                                                , &item )) {
+                                                                 , channel_id
+                                                                 , &item
+                                                                 , remaining_titles )) {
                   error!("Failed to post tweet to Discord: {}", e);
                 }
               }
@@ -204,16 +210,22 @@ impl RssSubscriber {
   async fn post_to_discord(
     state: &State,
     channel_id: Id<ChannelMarker>, 
-    item: &FeedItem
+    item: &FeedItem,
+    remaining: Vec<String>
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let message_title = format!(
       "{}: {}",
       &options::CONFIG.title_mod_msg, &item.title
     );
 
+    let mut remaining_titles_str = String::new();
+    if !remaining.is_empty() {
+      remaining_titles_str = format!(". А ещё важно: {}", remaining.join(", "));
+    }
+
     let message_desc = format!(
-      "{}: {}",
-      &options::CONFIG.desc_mod_msg, &item.description
+      "{}: {}{}",
+      &options::CONFIG.desc_mod_msg, &item.description, &remaining_titles_str
     );
 
     let rarity_response_title =
