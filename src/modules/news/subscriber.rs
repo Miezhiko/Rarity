@@ -122,7 +122,9 @@ impl RssSubscriber {
 
   async fn fetch_rss() -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
     let news_instances = vec![
-      "https://lenta.ru/rss/google-newsstand/main"
+      "https://www.themoscowtimes.com/rss/news",
+      "https://lenta.ru/rss/google-newsstand/main",
+      "https://meduza.io/rss/all"
     ];
     
     for rss_url in &news_instances {
