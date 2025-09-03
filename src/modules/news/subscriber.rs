@@ -186,14 +186,15 @@ impl RssSubscriber {
     item: &FeedItem
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let message = format!(
-      "Как Рарити передай новость своими словами для друзей: {}",
-      item.description
+      "Как Рарити передай новость своими словами для друзей: {} \n{}",
+      &item.title, &item.description
     );
 
     let rarity_response =
       ollama::generate_ollama_response(&message, state).await?;
 
     let embed = EmbedBuilder::new()
+      .title(&item.title)
       .description(rarity_response)
       .color(0xFF69B4)
       .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
@@ -204,7 +205,7 @@ impl RssSubscriber {
       .embeds(&[embed])
       .await?;
     
-    info!("Posted new tweet to Discord: {}", item.title);
+    info!("Posted news to Discord: {}", item.title);
     
     Ok(())
   }
