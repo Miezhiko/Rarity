@@ -165,10 +165,11 @@ impl RssSubscriber {
             link: entry.links.first()
               .map(|l| l.href.clone())
               .unwrap_or_else(|| "No link".to_string()),
-            description: entry.summary
-              .map(|s| s.content)
+            description: entry.content
+              .and_then(|c| c.body) // Try content body first
+              .or_else(|| entry.summary.map(|s| s.content)) // Fall back to summary
               .unwrap_or_else(|| "No description".to_string()),
-            published_timestamp,
+            published_timestamp
           };
           items.push(item);
         }
@@ -181,21 +182,29 @@ impl RssSubscriber {
   }
 
   async fn post_to_discord(
-    state: &State, 
+    state: &State,
     channel_id: Id<ChannelMarker>, 
     item: &FeedItem
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let message = format!(
-      "Как Рарити передай новость своими словами для друзей: {} \n{}",
-      &item.title, &item.description
+    let message_title = format!(
+      "{}: {}",
+      &options::CONFIG.title_mod_msg, &item.title
     );
 
-    let rarity_response =
-      ollama::generate_ollama_response(&message, state).await?;
+    let message_desc = format!(
+      "{}: {}",
+      &options::CONFIG.desc_mod_msg, &item.description
+    );
+
+    let rarity_response_title =
+      ollama::generate_ollama_response(&message_title, state).await?;
+
+    let rarity_response_desc =
+      ollama::generate_ollama_response(&message_desc, state).await?;
 
     let embed = EmbedBuilder::new()
-      .title(&item.title)
-      .description(rarity_response)
+      .title(&rarity_response_title)
+      .description(&rarity_response_desc)
       .color(0xFF69B4)
       .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
       .build();
@@ -205,6 +214,10 @@ impl RssSubscriber {
       .embeds(&[embed])
       .await?;
     
+    unsafe {
+      options::GLOBAL.last_news = item.description.clone();
+    }
+
     info!("Posted news to Discord: {}", item.title);
     
     Ok(())

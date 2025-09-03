@@ -1,8 +1,5 @@
 use crate::{
-  types::state::{ State, ConversationHistory },
-  state,
-  ollama,
-  commands::rarity
+  commands::rarity, ollama, options, state, types::state::{ ConversationHistory, State }
 };
 
 use twilight_model::channel::Message;
@@ -36,6 +33,18 @@ pub async fn reply(
     }
     cloned
   };
+
+  if msg.channel_id == options::CONFIG.twitter_channel_id {
+    // TODO:
+    #[allow(static_mut_refs)]
+    unsafe {
+      history.messages.push((
+        author.clone().into(),
+        "Рарити, расскажи новости".into(),
+        options::GLOBAL.last_news.clone().into()
+      ));
+    }
+  }
 
   let response = ollama::generate_ollama_with_history(&text, &author, &history, &state)
     .await

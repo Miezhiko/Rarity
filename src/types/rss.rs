@@ -6,7 +6,7 @@ use std::sync::{ Arc, Mutex };
 
 use twilight_model::id::{ Id, marker::{ChannelMarker} };
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FeedItem {
   pub title: String,
   pub link: String,
@@ -14,7 +14,7 @@ pub struct FeedItem {
   pub published_timestamp: u64
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RssSubscriber {
   pub last_items: Arc<Mutex<Vec<FeedItem>>>,
   pub running: Arc<Mutex<bool>>,
