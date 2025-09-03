@@ -26,10 +26,6 @@ static BOT_STRING: OnceCell<&'static str> = OnceCell::new();
 
 static HEART: &str = "❤️";
 
-fn get_bot_string() -> &'static str {
-  BOT_STRING.get_or_init(|| Box::leak(format!("<@{}>", options::CONFIG.bot).into_boxed_str()))
-}
-
 fn spawn(fut: impl Future<Output = anyhow::Result<()>> + Send + 'static) {
   tokio::spawn(async move {
     if let Err(why) = fut.await {
@@ -51,6 +47,10 @@ async fn help(msg: Message, state: State) -> anyhow::Result<()> {
     .content("try to chat with me")
     .await?;
   Ok(())
+}
+
+fn get_bot_string() -> &'static str {
+  BOT_STRING.get_or_init(|| Box::leak(format!("<@{}>", options::CONFIG.bot).into_boxed_str()))
 }
 
 fn contains_mention(text: &str) -> Option<(String, bool)> {
@@ -94,7 +94,11 @@ async fn handle_message(
         None => msg.author.name.clone()
       };
       let msg_content = msg.content.clone();
-      if let Some((rtext, first)) = contains_mention(msg_content.as_str()) {
+      if let Some(rfs) = &msg.referenced_message {
+        if rfs.author.id == options::CONFIG.bot {
+          spawn(reply::reply(msg.0, msg_content, author_name, Arc::clone(state)))
+        }
+      } else if let Some((rtext, first)) = contains_mention(msg_content.as_str()) {
         if first {
           match rtext.as_str() {
             "help"     => spawn(help(msg.0, Arc::clone(state))),

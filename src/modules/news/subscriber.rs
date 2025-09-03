@@ -23,6 +23,13 @@ use twilight_util::builder::embed::{
   EmbedFooterBuilder
 };
 
+fn remove_quotes(s: &str) -> String {
+  s.strip_prefix('"')
+   .and_then(|stripped| stripped.strip_suffix('"'))
+   .map(|stripped| stripped.to_string())
+   .unwrap_or_else(|| s.to_string())
+}
+
 impl RssSubscriber {
   pub fn new(
     state: State,
@@ -202,8 +209,10 @@ impl RssSubscriber {
     let rarity_response_desc =
       ollama::generate_ollama_response(&message_desc, state).await?;
 
+    let title_no_q = remove_quotes(&rarity_response_title);
+
     let embed = EmbedBuilder::new()
-      .title(&rarity_response_title)
+      .title(&title_no_q)
       .description(&rarity_response_desc)
       .color(0xFF69B4)
       .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
