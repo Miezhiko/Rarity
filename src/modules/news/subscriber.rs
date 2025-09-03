@@ -84,11 +84,11 @@ impl RssSubscriber {
             };
 
             if !new_items.is_empty() {
-              info!("Found {} new tweets", new_items.len());
-              for item in new_items {
+              info!("Found {} new news, taking very first", new_items.len());
+              if let Some(item) = new_items.first() {
                 if let Err(e) = rt.block_on(Self::post_to_discord( &state
-                                                                 , channel_id
-                                                                 , &item )) {
+                                                                , channel_id
+                                                                , &item )) {
                   error!("Failed to post tweet to Discord: {}", e);
                 }
               }
@@ -186,7 +186,7 @@ impl RssSubscriber {
     item: &FeedItem
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let message = format!(
-      "Как Рарити опиши новость и добавь свою реакцию на неё, вот новость: {}", 
+      "Как Рарити передай новость своими словами для друзей: {}",
       item.description
     );
 
