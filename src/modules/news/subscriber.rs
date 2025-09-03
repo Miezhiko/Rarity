@@ -208,6 +208,7 @@ impl RssSubscriber {
     item: &FeedItem,
     remaining: &[String]
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+
     let message_title = format!(
       "{}: {}",
       &options::CONFIG.title_mod_msg, &item.title
@@ -226,41 +227,46 @@ impl RssSubscriber {
       &options::CONFIG.desc_mod_msg, &full_news
     );
 
-    let rarity_response_title =
-      ollama::generate_ollama_response(&message_title, state).await?;
+    if let Ok(p) = state.generation_lock.try_acquire() {
 
-    let rarity_response_desc =
-      ollama::generate_ollama_response(&message_desc, state).await?;
+      let rarity_response_title =
+        ollama::generate_ollama_response(&message_title, state).await?;
 
-    let title_no_q = remove_quotes(&rarity_response_title);
-    let timestamp_secs = item.published_timestamp as i64;
-    let timestamp = Timestamp::from_secs(timestamp_secs)
-        .unwrap_or_else(|_| {
-            let now_secs = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64;
-            Timestamp::from_secs(now_secs).unwrap()
-        });
+      let rarity_response_desc =
+        ollama::generate_ollama_response(&message_desc, state).await?;
 
-    let embed = EmbedBuilder::new()
-      .title(&title_no_q)
-      .description(&rarity_response_desc)
-      .color(0xFF69B4)
-      .timestamp(timestamp)
-      .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
-      .build();
+      let title_no_q = remove_quotes(&rarity_response_title);
+      let timestamp_secs = item.published_timestamp as i64;
+      let timestamp = Timestamp::from_secs(timestamp_secs)
+          .unwrap_or_else(|_| {
+              let now_secs = SystemTime::now()
+                  .duration_since(UNIX_EPOCH)
+                  .unwrap()
+                  .as_secs() as i64;
+              Timestamp::from_secs(now_secs).unwrap()
+          });
 
-    state.http
-      .create_message(channel_id)
-      .embeds(&[embed])
-      .await?;
-    
-    unsafe {
-      options::GLOBAL.last_news = full_news;
+      let embed = EmbedBuilder::new()
+        .title(&title_no_q)
+        .description(&rarity_response_desc)
+        .color(0xFF69B4)
+        .timestamp(timestamp)
+        .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
+        .build();
+
+      state.http
+        .create_message(channel_id)
+        .embeds(&[embed])
+        .await?;
+      
+      unsafe {
+        options::GLOBAL.last_news = full_news;
+      }
+
+      info!("Posted news to Discord: {}", item.title);
+
+      drop(p)
     }
-
-    info!("Posted news to Discord: {}", item.title);
     
     Ok(())
   }

@@ -1,5 +1,9 @@
 use crate::{
-  commands::rarity, ollama, options, state, types::state::{ ConversationHistory, State }
+  commands::rarity,
+  ollama,
+  options,
+  state,
+  types::state::{ ConversationHistory, State }
 };
 
 use twilight_model::channel::Message;

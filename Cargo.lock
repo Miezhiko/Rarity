@@ -1488,7 +1488,7 @@ dependencies = [
 
 [[package]]
 name = "rarity"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "async-recursion",
