@@ -12,13 +12,13 @@ pub async fn speak(
   msg: Message,
   text: String,
   author: String,
-  state: State,
+  state: State
 ) -> anyhow::Result<()> {
   tracing::debug!("speak command in channel {} by {}", msg.channel_id, msg.author.name);
 
   let permit = match rarity::try_acquire_permit(&state, &msg).await? {
     Some(p) => p,
-    None    => return Ok(()),
+    None    => return Ok(())
   };
 
   let history_lock = state.global_conversation_history.lock().await;

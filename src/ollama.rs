@@ -31,7 +31,7 @@ fn remove_xml_tags(input: &str) -> Cow<'_, str> {
   XML_TAG_REGEX.replace_all(input, "")
 }
 
-async fn generate_ollama_response(prompt: &str, state: &State) -> Result<String> {
+pub async fn generate_ollama_response(prompt: &str, state: &State) -> Result<String> {
   generate_ollama_response_with_retry(prompt, state, 0).await
 }
 

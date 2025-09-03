@@ -5,8 +5,8 @@ use crate::{
 
 use twilight_model::channel::Message;
 use twilight_util::builder::embed::{
-    EmbedBuilder,
-    EmbedFooterBuilder
+  EmbedBuilder,
+  EmbedFooterBuilder
 };
 
 use anyhow::Context;

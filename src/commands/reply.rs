@@ -14,13 +14,14 @@ pub async fn reply(
   msg: Message,
   text: String,
   author: String,
-  state: State,
+  state: State
 ) -> anyhow::Result<()> {
-  tracing::debug!("reply command in channel {} by {}", msg.channel_id, msg.author.name);
+  tracing::debug!("reply command in channel {} by {}", msg.channel_id
+                                                     , msg.author.name);
 
   let permit = match rarity::try_acquire_permit(&state, &msg).await? {
     Some(p) => p,
-    None    => return Ok(()),
+    None    => return Ok(())
   };
 
   let mut history = {

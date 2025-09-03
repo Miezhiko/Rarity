@@ -10,5 +10,6 @@ pub struct IOptions {
   pub allowed_guilds: Vec<u64>,
   pub restricted_channels: Vec<u64>,
   pub owner: u64,
-  pub bot: u64
+  pub bot: u64,
+  pub twitter_channel_id: u64
 }

@@ -2,17 +2,25 @@
 #[macro_use] extern crate anyhow;
 
 mod types;
+#[macro_use] mod macros;
+mod modules;
 mod options;
 mod state;
 mod handler;
 mod ollama;
 mod commands;
 
-use crate::types::state::{ StateRef, GlobalConversationHistory };
-use crate::handler::handle_event;
+use crate::{
+  types::{
+    state::{ StateRef, GlobalConversationHistory },
+    rss::RssSubscriber
+  },
+  handler::handle_event,
+};
 
 use std::sync::Arc;
 use std::collections::{ HashMap, HashSet };
+use std::time::{ Duration };
 
 use tokio::sync::Mutex;
 use smallvec::SmallVec;
@@ -78,6 +86,14 @@ async fn main() -> anyhow::Result<()> {
 
   tracing::info!("listening events");
 
+  let rss_subscriber = RssSubscriber::new(
+    Arc::clone(&state),
+    Id::new(options::CONFIG.twitter_channel_id)
+  );
+
+  let _rss_handle = rss_subscriber.start(Duration::from_secs(600));
+  tracing::info!("Twitter RSS subscriber has started");
+
   while let Some(item) = shard.next_event(EventTypeFlags::all()).await {
     let Ok(event) = item else {
       tracing::warn!(source = ?item.unwrap_err(), "error receiving event");
@@ -87,6 +103,8 @@ async fn main() -> anyhow::Result<()> {
     cache.update(&event);
     tokio::spawn(handle_event(event, Arc::clone(&state)));
   }
+
+  rss_subscriber.stop();
 
   tracing::error!("Event loop terminated unexpectedly");
 
