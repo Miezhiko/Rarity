@@ -148,24 +148,41 @@ impl RssSubscriber {
 
   async fn fetch_rss(state: &State) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
     let news_instances = vec![
-      "https://www.themoscowtimes.com/rss/news",
-      "https://lenta.ru/rss/google-newsstand/main",
-      "https://meduza.io/rss/all",
-      "https://news.google.com/rss/search?q=квадроберы"
+      ("standard",  "https://www.themoscowtimes.com/rss/news"),
+      ("standard",  "https://lenta.ru/rss/google-newsstand/main"),
+      ("standard",  "https://meduza.io/rss/all"),
+      ("bing",      "https://www.bing.com/news/search?q=%D0%BA%D0%B2%D0%B0%D0%B4%D1%80%D0%BE%D0%B1%D0%B5%D1%80%D1%8B&format=rss")
     ];
 
     setm! { all_items = Vec::new()
           , successful_fetches = 0 };
 
-    for rss_url in &news_instances {
-      match Self::try_fetch_from_instance(state, &rss_url).await {
-        Ok(items) => {
-          info!("Successfully fetched {} items from: {}", items.len(), &rss_url);
-          all_items.extend(items);
-          successful_fetches += 1;
+    for (feed_type, rss_url) in &news_instances {
+      info!("Attempting to fetch from {} ({})", rss_url, feed_type);
+      match *feed_type {
+        "bing" => {
+          match Self::try_fetch_from_bing(state, rss_url).await {
+            Ok(items) => {
+              info!("Successfully fetched {} items from Bing: {}", items.len(), rss_url);
+              all_items.extend(items);
+              successful_fetches += 1;
+            }
+            Err(e) => {
+              warn!("Failed to fetch from Bing {}: {}", rss_url, e);
+            }
+          }
         }
-        Err(e) => {
-          warn!("Failed to fetch from {}: {}", &rss_url, e);
+        _ => {
+          match Self::try_fetch_standard(state, rss_url).await {
+            Ok(items) => {
+              info!("Successfully fetched {} items from: {}", items.len(), rss_url);
+              all_items.extend(items);
+              successful_fetches += 1;
+            }
+            Err(e) => {
+              warn!("Failed to fetch from {}: {}", rss_url, e);
+            }
+          }
         }
       }
     }
@@ -178,11 +195,12 @@ impl RssSubscriber {
     }
   }
 
-  async fn try_fetch_from_instance(state: &State, rss_url: &str) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
+  async fn try_fetch_standard(state: &State, rss_url: &str) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
     let response = state.request_client
       .get(rss_url)
       .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
       .header("Accept", "application/rss+xml, application/xml, text/xml")
+      .timeout(Duration::from_secs(3))
       .send()
       .await?;
     
@@ -208,15 +226,77 @@ impl RssSubscriber {
               .map(|l| l.href.clone())
               .unwrap_or_else(|| "No link".to_string()),
             description: entry.content
-              .and_then(|c| c.body) // Try content body first
-              .or_else(|| entry.summary.map(|s| s.content)) // Fall back to summary
+              .and_then(|c| c.body)
+              .or_else(|| entry.summary.map(|s| s.content))
               .unwrap_or_else(|| "No description".to_string()),
             published_timestamp
           };
           items.push(item);
         }
-      }, Err(e) => {
-        error!("unable to parse: {e}, full rss:\n{content}")
+      }
+      Err(e) => {
+        error!("Unable to parse standard feed {}: {}, content:\n{}", rss_url, e, content);
+        return Err(format!("Failed to parse standard feed: {}", e).into());
+      }
+    }
+
+    Ok(items)
+  }
+
+  async fn try_fetch_from_bing(state: &State, rss_url: &str) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
+    let response = state.request_client
+      .get(rss_url)
+      .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
+      .header("Accept", "application/rss+xml, application/xml, text/xml")
+      .timeout(Duration::from_secs(3))
+      .send()
+      .await?;
+    
+    if !response.status().is_success() {
+      return Err(format!("Bing HTTP {}", response.status()).into());
+    }
+    
+    let content = response.text().await?;
+    let mut items = Vec::new();
+
+    match parser::parse(content.as_bytes()) {
+      Ok(feed) => {
+        for entry in feed.entries.into_iter().take(10) {
+          let published_timestamp = entry.published
+            .map(|dt| dt.timestamp() as u64)
+            .unwrap_or_else(|| {
+              SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+            });
+          
+          let title = entry.title
+            .map(|t| t.content.trim().to_string())
+            .unwrap_or_else(|| "No title".to_string());
+          
+          let link = entry.links.iter()
+            .find(|l| !l.href.is_empty())
+            .map(|l| l.href.clone())
+            .unwrap_or_else(|| "No link".to_string());
+          
+          let description = entry.summary
+            .map(|s| s.content.trim().to_string())
+            .or_else(|| entry.content.and_then(|c| c.body))
+            .unwrap_or_else(|| "No description".to_string());
+
+          let item = FeedItem {
+            title,
+            link,
+            description,
+            published_timestamp
+          };
+          items.push(item);
+        }
+      }
+      Err(e) => {
+        error!("Unable to parse Bing feed {}: {}, content:\n{}", rss_url, e, content);
+        return Err(format!("Failed to parse Bing feed: {}", e).into());
       }
     }
 
