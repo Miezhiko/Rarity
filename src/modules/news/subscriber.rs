@@ -59,9 +59,38 @@ impl RssSubscriber {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-      
+
       info!("Starting RSS subscriber for new tweets after timestamp: {}", start_time);
-      
+
+      // Test mode: process 5 recent items on startup
+      match rt.block_on(Self::fetch_rss(&state)) {
+        Ok(current_items) => {
+          let mut recent_items = current_items.clone();
+          // Sort by timestamp descending and take 5 most recent
+          recent_items.sort_by(|a, b| b.published_timestamp.cmp(&a.published_timestamp));
+          recent_items.truncate(5);
+          
+          if !recent_items.is_empty() {
+            info!("Test mode: Processing {} recent news items on startup", recent_items.len());
+            
+            if let Err(e) = rt.block_on(Self::post_to_discord( &state
+                                                             , channel_id
+                                                             , &recent_items )) {
+              error!("Failed to post test news to Discord: {}", e);
+            }
+          }
+          
+          // Update last_items with all current items to avoid reposting
+          {
+            let mut last_items_guard = last_items.lock().unwrap();
+            *last_items_guard = current_items;
+          }
+        }
+        Err(e) => {
+          error!("Error fetching RSS feed for test mode: {}", e);
+        }
+      }
+
       loop {
         {
           let running_guard = running.lock().unwrap();
@@ -121,7 +150,8 @@ impl RssSubscriber {
     let news_instances = vec![
       "https://www.themoscowtimes.com/rss/news",
       "https://lenta.ru/rss/google-newsstand/main",
-      "https://meduza.io/rss/all"
+      "https://meduza.io/rss/all",
+      "https://news.google.com/rss/search?q=квадроберы"
     ];
 
     setm! { all_items = Vec::new()
