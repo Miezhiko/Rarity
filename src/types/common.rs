@@ -1,5 +1,9 @@
 use serde::Deserialize;
 
+// nice models list:
+// mistral-small3.2:latest
+// gpt-oss:20b ?
+
 #[derive(Clone, Deserialize)]
 pub struct IOptions {
   pub discord: String,
@@ -13,5 +17,6 @@ pub struct IOptions {
   pub bot: u64,
   pub twitter_channel_id: u64,
   pub title_mod_msg: String,
-  pub desc_mod_msg: String
+  pub desc_mod_msg: String,
+  pub test_subscriber: bool
 }

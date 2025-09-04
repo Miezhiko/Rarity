@@ -62,49 +62,51 @@ impl RssSubscriber {
 
       info!("Starting RSS subscriber for new tweets after timestamp: {}", start_time);
 
-      // Test mode: process 5 recent items on startup, ensuring one from Bing if available
-      match rt.block_on(Self::fetch_rss(&state)) {
-        Ok(current_items) => {
-          let mut recent_items = current_items.clone();
-          // Ensure at least one Bing item is included if available
-          let mut bing_item = None;
-          for item in &recent_items {
-            if item.link.contains("bing.com") {
-              bing_item = Some(item.clone());
-              break;
+      if options::CONFIG.test_subscriber {
+        // Test mode: process 5 recent items on startup, ensuring one from Bing if available
+        match rt.block_on(Self::fetch_rss(&state)) {
+          Ok(current_items) => {
+            let mut recent_items = current_items.clone();
+            // Ensure at least one Bing item is included if available
+            let mut bing_item = None;
+            for item in &recent_items {
+              if item.link.contains("bing.com") {
+                bing_item = Some(item.clone());
+                break;
+              }
             }
-          }
-          
-          // Sort by timestamp descending
-          recent_items.sort_by(|a, b| b.published_timestamp.cmp(&a.published_timestamp));
-          
-          // Take 4 most recent items and add one Bing item if available
-          let mut selected_items = recent_items.into_iter().take(4).collect::<Vec<_>>();
-          if let Some(bing) = bing_item {
-            if !selected_items.iter().any(|item| item.link.contains("bing.com")) {
-              selected_items.push(bing);
-            }
-          }
-          
-          // Ensure we have at most 5 items
-          selected_items.truncate(5);
-          
-          if !selected_items.is_empty() {
-            info!("Test mode: Processing {} recent news items on startup", selected_items.len());
             
-            if let Err(e) = rt.block_on(Self::post_to_discord(&state, channel_id, &selected_items)) {
-              error!("Failed to post test news to Discord: {}", e);
+            // Sort by timestamp descending
+            recent_items.sort_by(|a, b| b.published_timestamp.cmp(&a.published_timestamp));
+            
+            // Take 4 most recent items and add one Bing item if available
+            let mut selected_items = recent_items.into_iter().take(4).collect::<Vec<_>>();
+            if let Some(bing) = bing_item {
+              if !selected_items.iter().any(|item| item.link.contains("bing.com")) {
+                selected_items.push(bing);
+              }
+            }
+            
+            // Ensure we have at most 5 items
+            selected_items.truncate(5);
+            
+            if !selected_items.is_empty() {
+              info!("Test mode: Processing {} recent news items on startup", selected_items.len());
+              
+              if let Err(e) = rt.block_on(Self::post_to_discord(&state, channel_id, &selected_items)) {
+                error!("Failed to post test news to Discord: {}", e);
+              }
+            }
+            
+            // Update last_items with all current items to avoid reposting
+            {
+              let mut last_items_guard = last_items.lock().unwrap();
+              *last_items_guard = current_items;
             }
           }
-          
-          // Update last_items with all current items to avoid reposting
-          {
-            let mut last_items_guard = last_items.lock().unwrap();
-            *last_items_guard = current_items;
+          Err(e) => {
+            error!("Error fetching RSS feed for test mode: {}", e);
           }
-        }
-        Err(e) => {
-          error!("Error fetching RSS feed for test mode: {}", e);
         }
       }
 
