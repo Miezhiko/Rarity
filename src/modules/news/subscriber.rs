@@ -23,8 +23,8 @@ use twilight_util::builder::embed::{
 };
 
 const DISCORD_EMBED_TITLE_LIMIT: usize = 256;
-const DISCORD_EMBED_DESCRIPTION_LIMIT: usize = 4096;
-const DISCORD_EMBED_FOOTER_LIMIT: usize = 2048;
+const DISCORD_EMBED_DESCRIPTION_LIMIT: usize = 4050;
+const DISCORD_EMBED_FOOTER_LIMIT: usize = 666;
 const DISCORD_EMBED_TOTAL_LIMIT: usize = 6000;
 const MAX_CHUNK_SIZE: usize = 3900;
 
@@ -40,8 +40,17 @@ fn remove_quotes(s: &str) -> String {
 }
 
 fn sanitize_discord_text(text: &str) -> String {
-  text.chars()
+  text
+    .chars()
     .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
+    .filter(|c| {
+      match *c as u32 {
+        0x200B..=0x200F |  // Zero-width space, zero-width non-joiner, etc.
+        0x202A..=0x202E |  // Directional formatting
+        0xFEFF => false,   // Byte Order Mark
+        _ => true,
+      }
+    })
     .collect::<String>()
     .trim()
     .to_string()
@@ -554,19 +563,27 @@ impl RssSubscriber {
     }
 
     let latest_timestamp = items
-      .iter()
-      .map(|item| item.published_timestamp)
-      .max()
-      .unwrap_or(0) as i64;
-    
-    let timestamp = Timestamp::from_secs(latest_timestamp)
-        .unwrap_or_else(|_| {
+        .iter()
+        .map(|item| item.published_timestamp)
+        .max()
+        .unwrap_or(0) as i64;
+
+    let timestamp = if latest_timestamp > 0 {
+        Timestamp::from_secs(latest_timestamp)
+          .unwrap_or_else(|_| {
             let now_secs = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64;
+              .duration_since(UNIX_EPOCH)
+              .unwrap()
+              .as_secs() as i64;
             Timestamp::from_secs(now_secs).unwrap()
-        });
+          })
+      } else {
+        let now_secs = SystemTime::now()
+          .duration_since(UNIX_EPOCH)
+          .unwrap()
+          .as_secs() as i64;
+        Timestamp::from_secs(now_secs).unwrap()
+      };
 
     let embed = EmbedBuilder::new()
       .title(sanitized_title)
