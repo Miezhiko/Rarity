@@ -371,27 +371,39 @@ impl RssSubscriber {
       let description = rarity_response_desc.clone();
 
       if title_no_q.chars().count() > 256 {
-        title_no_q = title_no_q.chars().take(250).collect();
-        title_no_q.push_str("...");
+        title_no_q = title_no_q.chars().take(250).collect::<String>() + "...";
         warn!("Title truncated to fit Discord limits");
       }
 
-      if description.len() > 4096 {
-        warn!("Description too long ({}), splitting into multiple messages", description.len());
+      if description.chars().count() > 4000 {
+        warn!("Description too long ({} chars), splitting into multiple messages", description.chars().count());
         
         let mut chunks = Vec::new();
-        let mut current_pos = 0;
-        
-        while current_pos < description.len() {
-          let end_pos = std::cmp::min(current_pos + 4093, description.len());
-          let mut chunk = description[current_pos..end_pos].to_string();
-          
-          if end_pos < description.len() {
+        let mut remaining = description.as_str();
+        while !remaining.is_empty() {
+          let (chunk, rest) = if remaining.chars().count() <= 4000 {
+            (remaining, "")
+          } else {
+            setm! { char_count  = 0
+                  , byte_idx    = 0 };
+            for (i, c) in remaining.char_indices() {
+              char_count += 1;
+              if char_count > 4000 {
+                break;
+              }
+              byte_idx = i + c.len_utf8();
+            }
+            set! { chunk = &remaining[..byte_idx]
+                 , rest  = &remaining[byte_idx..] };
+            (chunk, rest)
+          };
+
+          let mut chunk = chunk.to_string();
+          if !rest.is_empty() {
             chunk.push_str("...");
           }
-          
           chunks.push(chunk);
-          current_pos = end_pos;
+          remaining = rest;
         }
 
         let first_description = chunks.first().unwrap_or(&String::new()).clone();
@@ -399,9 +411,8 @@ impl RssSubscriber {
 
         for (i, chunk) in chunks.iter().skip(1).enumerate() {
           let continuation_title = format!("{} (часть {})", &title_no_q, i + 2);
-          let continuation_title = if continuation_title.len() > 256 {
-            let mut truncated = continuation_title;
-            truncated.truncate(253);
+          let continuation_title = if continuation_title.chars().count() > 256 {
+            let mut truncated = continuation_title.chars().take(253).collect::<String>();
             truncated.push_str("...");
             truncated
           } else {
@@ -413,14 +424,14 @@ impl RssSubscriber {
       } else {
         Self::send_embed_message(state, channel_id, &title_no_q, &description, &valid_items).await?;
       }
-      
+
       unsafe {
         options::GLOBAL.last_news = combined_descriptions;
       }
 
       info!("Posted combined news to Discord with {} items", valid_items.len());
 
-      drop(p)
+      drop(p);
     }
     
     Ok(())
