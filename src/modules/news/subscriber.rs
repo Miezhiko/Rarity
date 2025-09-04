@@ -22,8 +22,6 @@ use twilight_util::builder::embed::{
   EmbedFooterBuilder
 };
 
-use async_recursion::async_recursion;
-
 fn remove_quotes(s: &str) -> String {
   s.strip_prefix('"')
    .and_then(|stripped| stripped.strip_suffix('"'))
@@ -338,39 +336,80 @@ impl RssSubscriber {
       return Ok(());
     }
 
-    for item in valid_items {
-      let message_title = format!(
-        "{}: {}",
-        &options::CONFIG.title_mod_msg, item.title.trim()
-      );
+    // Concatenate all titles
+    let all_titles: Vec<String> = valid_items
+      .iter()
+      .map(|item| item.title.trim().to_string())
+      .collect();
+    let combined_titles = all_titles.join(", ");
 
-      let message_desc = format!(
-        "{}: {}",
-        &options::CONFIG.desc_mod_msg, item.description.trim()
-      );
+    // Concatenate all descriptions
+    let all_descriptions: Vec<String> = valid_items
+      .iter()
+      .map(|item| item.description.trim().to_string())
+      .collect();
+    let combined_descriptions = all_descriptions.join(". ");
 
-      if let Ok(p) = state.generation_lock.try_acquire() {
-        let rarity_response_title =
-          ollama::generate_ollama_response(&message_title, state).await?;
+    let message_title = format!(
+      "{}: {}",
+      &options::CONFIG.title_mod_msg, &combined_titles
+    );
 
-        let rarity_response_desc =
-          ollama::generate_ollama_response(&message_desc, state).await?;
+    let message_desc = format!(
+      "{}: {}",
+      &options::CONFIG.desc_mod_msg, &combined_descriptions
+    );
 
-        let mut title_no_q = remove_quotes(&rarity_response_title);
-        let description = rarity_response_desc.clone();
+    if let Ok(p) = state.generation_lock.try_acquire() {
+      let rarity_response_title =
+        ollama::generate_ollama_response(&message_title, state).await?;
 
-        if title_no_q.chars().count() > 256 {
-          title_no_q = title_no_q.chars().take(250).collect::<String>() + "...";
-          warn!("Title truncated to fit Discord limits");
-        }
+      let rarity_response_desc =
+        ollama::generate_ollama_response(&message_desc, state).await?;
 
-        let description_chunks = Self::split_description(&description, 4096);
+      let mut title_no_q = remove_quotes(&rarity_response_title);
+      let description = rarity_response_desc.clone();
+
+      if title_no_q.chars().count() > 256 {
+        title_no_q = title_no_q.chars().take(250).collect::<String>() + "...";
+        warn!("Title truncated to fit Discord limits");
+      }
+
+      if description.chars().count() > 4000 {
+        warn!("Description too long ({} chars), splitting into multiple messages", description.chars().count());
         
-        if let Some(first_chunk) = description_chunks.first() {
-          Self::send_embed_message(state, channel_id, &title_no_q, first_chunk, &[item]).await?;
+        let mut chunks = Vec::new();
+        let mut remaining = description.as_str();
+        while !remaining.is_empty() {
+          let (chunk, rest) = if remaining.chars().count() <= 4000 {
+            (remaining, "")
+          } else {
+            setm! { char_count  = 0
+                  , byte_idx    = 0 };
+            for (i, c) in remaining.char_indices() {
+              char_count += 1;
+              if char_count > 4000 {
+                break;
+              }
+              byte_idx = i + c.len_utf8();
+            }
+            set! { chunk = &remaining[..byte_idx]
+                 , rest  = &remaining[byte_idx..] };
+            (chunk, rest)
+          };
+
+          let mut chunk = chunk.to_string();
+          if !rest.is_empty() {
+            chunk.push_str("...");
+          }
+          chunks.push(chunk);
+          remaining = rest;
         }
 
-        for (i, chunk) in description_chunks.iter().skip(1).enumerate() {
+        let first_description = chunks.first().unwrap_or(&String::new()).clone();
+        Self::send_embed_message(state, channel_id, &title_no_q, &first_description, &valid_items).await?;
+
+        for (i, chunk) in chunks.iter().skip(1).enumerate() {
           let continuation_title = format!("{} (часть {})", &title_no_q, i + 2);
           let continuation_title = if continuation_title.chars().count() > 256 {
             let mut truncated = continuation_title.chars().take(253).collect::<String>();
@@ -380,72 +419,24 @@ impl RssSubscriber {
             continuation_title
           };
           
-          Self::send_embed_message(state, channel_id, &continuation_title, chunk, &[item]).await?;
+          Self::send_embed_message(state, channel_id, &continuation_title, chunk, &valid_items).await?;
         }
-
-        unsafe {
-          options::GLOBAL.last_news = item.description.trim().to_string();
-        }
-
-        info!("Posted news item to Discord: {}", item.title);
-        drop(p);
+      } else {
+        Self::send_embed_message(state, channel_id, &title_no_q, &description, &valid_items).await?;
       }
+
+      unsafe {
+        options::GLOBAL.last_news = combined_descriptions;
+      }
+
+      info!("Posted combined news to Discord with {} items", valid_items.len());
+
+      drop(p);
     }
     
     Ok(())
   }
 
-  fn split_description(description: &str, max_chars: usize) -> Vec<String> {
-    let mut chunks = Vec::new();
-    let mut remaining = description;
-    
-    while !remaining.is_empty() {
-      if remaining.chars().count() <= max_chars {
-        chunks.push(remaining.to_string());
-        break;
-      }
-      
-      let mut break_index = 0;
-      let mut char_count = 0;
-      
-      for (idx, _) in remaining.char_indices() {
-        if char_count >= max_chars {
-          let mut actual_break = idx;
-          
-          for i in (0..idx).rev() {
-            if let Some(c) = remaining.get(i..=i) {
-              if c == "." || c == "!" || c == "?" || c == " " {
-                actual_break = i + 1;
-                break;
-              }
-            }
-          }
-          
-          if actual_break == 0 {
-            actual_break = idx;
-          }
-          
-          let chunk = remaining[..actual_break].trim().to_string();
-          chunks.push(chunk);
-          remaining = &remaining[actual_break..].trim_start();
-          break;
-        }
-        
-        char_count += 1;
-        break_index = idx;
-      }
-      
-      if char_count >= max_chars && break_index > 0 {
-        let chunk = remaining[..break_index].to_string();
-        chunks.push(chunk);
-        remaining = &remaining[break_index..];
-      }
-    }
-    
-    chunks
-  }
-
-  #[async_recursion]
   async fn send_embed_message(
     state: &State,
     channel_id: Id<ChannelMarker>,
@@ -461,12 +452,6 @@ impl RssSubscriber {
     if description.is_empty() {
       warn!("Empty description, skipping message");
       return Ok(());
-    }
-
-    if description.chars().count() > 4096 {
-      warn!("Description still too long ({} chars), truncating", description.chars().count());
-      let truncated = description.chars().take(4093).collect::<String>() + "...";
-      return Self::send_embed_message(state, channel_id, title, &truncated, items).await;
     }
 
     let latest_timestamp = items
@@ -492,14 +477,10 @@ impl RssSubscriber {
       .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
       .build();
 
-    if let Err(e) = state.http
+    state.http
       .create_message(channel_id)
       .embeds(&[embed])
-      .await
-    {
-      error!("Failed to send embed: {}", e);
-      return Err(Box::new(e));
-    }
+      .await?;
     
     Ok(())
   }
