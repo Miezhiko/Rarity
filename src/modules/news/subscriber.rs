@@ -90,21 +90,12 @@ impl RssSubscriber {
             };
 
             if !new_items.is_empty() {
-              info!("Found {} new news, taking very first", new_items.len());
+              info!("Found {} new news items, combining all", new_items.len());
               
-              let remaining_titles: Vec<String> = new_items
-                .iter()
-                .skip(1)
-                .map(|item| item.title.clone())
-                .collect();
-                
-              if let Some(item) = new_items.first() {
-                if let Err(e) = rt.block_on(Self::post_to_discord( &state
-                                                                 , channel_id
-                                                                 , &item
-                                                                 , &remaining_titles )) {
-                  error!("Failed to post tweet to Discord: {}", e);
-                }
+              if let Err(e) = rt.block_on(Self::post_to_discord( &state
+                                                               , channel_id
+                                                               , &new_items )) {
+                error!("Failed to post news to Discord: {}", e);
               }
             }
           }
@@ -187,8 +178,8 @@ impl RssSubscriber {
               .map(|l| l.href.clone())
               .unwrap_or_else(|| "No link".to_string()),
             description: entry.content
-              .and_then(|c| c.body) // Try content body first
-              .or_else(|| entry.summary.map(|s| s.content)) // Fall back to summary
+              .and_then(|c| c.body)
+              .or_else(|| entry.summary.map(|s| s.content))
               .unwrap_or_else(|| "No description".to_string()),
             published_timestamp
           };
@@ -205,26 +196,29 @@ impl RssSubscriber {
   async fn post_to_discord(
     state: &State,
     channel_id: Id<ChannelMarker>, 
-    item: &FeedItem,
-    remaining: &[String]
+    items: &[FeedItem]
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+
+    let all_titles: Vec<String> = items
+      .iter()
+      .map(|item| item.title.clone())
+      .collect();
+    let combined_titles = all_titles.join(", ");
+
+    let all_descriptions: Vec<String> = items
+      .iter()
+      .map(|item| item.description.clone())
+      .collect();
+    let combined_descriptions = all_descriptions.join(". ");
 
     let message_title = format!(
       "{}: {}",
-      &options::CONFIG.title_mod_msg, &item.title
+      &options::CONFIG.title_mod_msg, &combined_titles
     );
-
-    let remaining_titles_str = if remaining.is_empty() {
-      String::new()
-    } else {
-      format!(". А ещё важно: {}", remaining.join(", "))
-    };
-
-    let full_news = format!("{}{remaining_titles_str}", &item.description);
 
     let message_desc = format!(
       "{}: {}",
-      &options::CONFIG.desc_mod_msg, &full_news
+      &options::CONFIG.desc_mod_msg, &combined_descriptions
     );
 
     if let Ok(p) = state.generation_lock.try_acquire() {
@@ -236,8 +230,14 @@ impl RssSubscriber {
         ollama::generate_ollama_response(&message_desc, state).await?;
 
       let title_no_q = remove_quotes(&rarity_response_title);
-      let timestamp_secs = item.published_timestamp as i64;
-      let timestamp = Timestamp::from_secs(timestamp_secs)
+      
+      let latest_timestamp = items
+        .iter()
+        .map(|item| item.published_timestamp)
+        .max()
+        .unwrap_or(0) as i64;
+      
+      let timestamp = Timestamp::from_secs(latest_timestamp)
           .unwrap_or_else(|_| {
               let now_secs = SystemTime::now()
                   .duration_since(UNIX_EPOCH)
@@ -260,10 +260,10 @@ impl RssSubscriber {
         .await?;
       
       unsafe {
-        options::GLOBAL.last_news = full_news;
+        options::GLOBAL.last_news = combined_descriptions;
       }
 
-      info!("Posted news to Discord: {}", item.title);
+      info!("Posted combined news to Discord with {} items", items.len());
 
       drop(p)
     }
