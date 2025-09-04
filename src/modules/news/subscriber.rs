@@ -43,10 +43,10 @@ impl RssSubscriber {
   }
 
   pub fn start(&self, poll_interval: Duration) -> thread::JoinHandle<()> {
-    set! { last_items   = Arc::clone(&self.last_items)
-         , running      = Arc::clone(&self.running)
-         , state        = Arc::clone(&self.state)
-         , channel_id   = self.channel_id };
+    let last_items = Arc::clone(&self.last_items);
+    let running = Arc::clone(&self.running);
+    let state = Arc::clone(&self.state);
+    let channel_id = self.channel_id;
 
     {
       let mut running_guard = running.lock().unwrap();
@@ -62,20 +62,37 @@ impl RssSubscriber {
 
       info!("Starting RSS subscriber for new tweets after timestamp: {}", start_time);
 
-      // Test mode: process 5 recent items on startup
+      // Test mode: process 5 recent items on startup, ensuring one from Bing if available
       match rt.block_on(Self::fetch_rss(&state)) {
         Ok(current_items) => {
           let mut recent_items = current_items.clone();
-          // Sort by timestamp descending and take 5 most recent
-          recent_items.sort_by(|a, b| b.published_timestamp.cmp(&a.published_timestamp));
-          recent_items.truncate(5);
+          // Ensure at least one Bing item is included if available
+          let mut bing_item = None;
+          for item in &recent_items {
+            if item.link.contains("bing.com") {
+              bing_item = Some(item.clone());
+              break;
+            }
+          }
           
-          if !recent_items.is_empty() {
-            info!("Test mode: Processing {} recent news items on startup", recent_items.len());
+          // Sort by timestamp descending
+          recent_items.sort_by(|a, b| b.published_timestamp.cmp(&a.published_timestamp));
+          
+          // Take 4 most recent items and add one Bing item if available
+          let mut selected_items = recent_items.into_iter().take(4).collect::<Vec<_>>();
+          if let Some(bing) = bing_item {
+            if !selected_items.iter().any(|item| item.link.contains("bing.com")) {
+              selected_items.push(bing);
+            }
+          }
+          
+          // Ensure we have at most 5 items
+          selected_items.truncate(5);
+          
+          if !selected_items.is_empty() {
+            info!("Test mode: Processing {} recent news items on startup", selected_items.len());
             
-            if let Err(e) = rt.block_on(Self::post_to_discord( &state
-                                                             , channel_id
-                                                             , &recent_items )) {
+            if let Err(e) = rt.block_on(Self::post_to_discord(&state, channel_id, &selected_items)) {
               error!("Failed to post test news to Discord: {}", e);
             }
           }
@@ -121,9 +138,7 @@ impl RssSubscriber {
             if !new_items.is_empty() {
               info!("Found {} new news items, combining all", new_items.len());
               
-              if let Err(e) = rt.block_on(Self::post_to_discord( &state
-                                                               , channel_id
-                                                               , &new_items )) {
+              if let Err(e) = rt.block_on(Self::post_to_discord(&state, channel_id, &new_items)) {
                 error!("Failed to post news to Discord: {}", e);
               }
             }
@@ -154,8 +169,8 @@ impl RssSubscriber {
       ("standard",  "https://meduza.io/rss/all")
     ];
 
-    setm! { all_items = Vec::new()
-          , successful_fetches = 0 };
+    let mut all_items = Vec::new();
+    let mut successful_fetches = 0;
 
     for (feed_type, rss_url) in &news_instances {
       info!("Attempting to fetch from {} ({})", rss_url, feed_type);
@@ -308,7 +323,6 @@ impl RssSubscriber {
     channel_id: Id<ChannelMarker>, 
     items: &[FeedItem]
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-
     // Filter out empty items and sanitize content
     let valid_items: Vec<&FeedItem> = items
       .iter()
@@ -345,7 +359,6 @@ impl RssSubscriber {
     );
 
     if let Ok(p) = state.generation_lock.try_acquire() {
-
       let rarity_response_title =
         ollama::generate_ollama_response(&message_title, state).await?;
 
@@ -393,18 +406,10 @@ impl RssSubscriber {
             continuation_title
           };
           
-          Self::send_embed_message( state
-                                  , channel_id
-                                  , &continuation_title
-                                  , chunk
-                                  , &valid_items ).await?;
+          Self::send_embed_message(state, channel_id, &continuation_title, chunk, &valid_items).await?;
         }
       } else {
-        Self::send_embed_message( state
-                                , channel_id
-                                , &title_no_q
-                                , &description
-                                , &valid_items ).await?;
+        Self::send_embed_message(state, channel_id, &title_no_q, &description, &valid_items).await?;
       }
       
       unsafe {
