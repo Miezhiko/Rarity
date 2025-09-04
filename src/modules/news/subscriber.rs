@@ -148,10 +148,10 @@ impl RssSubscriber {
 
   async fn fetch_rss(state: &State) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
     let news_instances = vec![
+      ("bing",      "https://www.bing.com/news/search?q=%D0%BA%D0%B2%D0%B0%D0%B4%D1%80%D0%BE%D0%B1%D0%B5%D1%80%D1%8B&format=rss"),
       ("standard",  "https://www.themoscowtimes.com/rss/news"),
       ("standard",  "https://lenta.ru/rss/google-newsstand/main"),
-      ("standard",  "https://meduza.io/rss/all"),
-      ("bing",      "https://www.bing.com/news/search?q=%D0%BA%D0%B2%D0%B0%D0%B4%D1%80%D0%BE%D0%B1%D0%B5%D1%80%D1%8B&format=rss")
+      ("standard",  "https://meduza.io/rss/all")
     ];
 
     setm! { all_items = Vec::new()
@@ -355,8 +355,8 @@ impl RssSubscriber {
       let mut title_no_q = remove_quotes(&rarity_response_title);
       let description = rarity_response_desc.clone();
 
-      if title_no_q.len() > 256 {
-        title_no_q.truncate(253);
+      if title_no_q.chars().count() > 256 {
+        title_no_q = title_no_q.chars().take(250).collect();
         title_no_q.push_str("...");
         warn!("Title truncated to fit Discord limits");
       }
