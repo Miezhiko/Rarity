@@ -368,7 +368,6 @@ impl RssSubscriber {
         ollama::generate_ollama_response(&message_desc, state).await?;
 
       let mut title_no_q = remove_quotes(&rarity_response_title);
-      let description = rarity_response_desc.clone();
 
       if title_no_q.chars().count() > 256 {
         title_no_q = title_no_q.chars().take(250).collect();
@@ -376,17 +375,17 @@ impl RssSubscriber {
         warn!("Title truncated to fit Discord limits");
       }
 
-      if description.len() > 4096 {
-        warn!("Description too long ({}), splitting into multiple messages", description.len());
+      if rarity_response_desc.chars().count() > 4000 {
+        warn!("Description too long ({}), splitting into multiple messages", rarity_response_desc.len());
         
         let mut chunks = Vec::new();
         let mut current_pos = 0;
         
-        while current_pos < description.len() {
-          let end_pos = std::cmp::min(current_pos + 4093, description.len());
-          let mut chunk = description[current_pos..end_pos].to_string();
+        while current_pos < rarity_response_desc.len() {
+          let end_pos = std::cmp::min(current_pos + 4000, rarity_response_desc.len());
+          let mut chunk = rarity_response_desc[current_pos..end_pos].to_string();
           
-          if end_pos < description.len() {
+          if end_pos < rarity_response_desc.len() {
             chunk.push_str("...");
           }
           
@@ -398,20 +397,16 @@ impl RssSubscriber {
         Self::send_embed_message(state, channel_id, &title_no_q, &first_description, &valid_items).await?;
 
         for (i, chunk) in chunks.iter().skip(1).enumerate() {
-          let continuation_title = format!("{} (часть {})", &title_no_q, i + 2);
-          let continuation_title = if continuation_title.len() > 256 {
-            let mut truncated = continuation_title;
-            truncated.truncate(253);
-            truncated.push_str("...");
-            truncated
-          } else {
-            continuation_title
+          let mut continuation_title = format!("{} (часть {})", &title_no_q, i + 2);
+          if continuation_title.chars().count() > 256 {
+            continuation_title = continuation_title.chars().take(250).collect::<String>();
+            continuation_title.push_str("...");
           };
-          
+
           Self::send_embed_message(state, channel_id, &continuation_title, chunk, &valid_items).await?;
         }
       } else {
-        Self::send_embed_message(state, channel_id, &title_no_q, &description, &valid_items).await?;
+        Self::send_embed_message(state, channel_id, &title_no_q, &rarity_response_desc, &valid_items).await?;
       }
       
       unsafe {
