@@ -26,7 +26,7 @@ const DISCORD_EMBED_TITLE_LIMIT: usize = 256;
 const DISCORD_EMBED_DESCRIPTION_LIMIT: usize = 4096;
 const DISCORD_EMBED_FOOTER_LIMIT: usize = 2048;
 const DISCORD_EMBED_TOTAL_LIMIT: usize = 6000;
-const MAX_CHUNK_SIZE: usize = 3900; // Leave some buffer for continuation text
+const MAX_CHUNK_SIZE: usize = 3900;
 
 const TRUNCATION_BUFFER: usize = 50;
 const CONTINUATION_SUFFIX: &str = "...";
@@ -443,6 +443,7 @@ impl RssSubscriber {
       let mut title_no_q = sanitize_discord_text(&remove_quotes(&rarity_response_title));
       let sanitized_description = sanitize_discord_text(&rarity_response_desc);
 
+      // Safely truncate title if needed
       if title_no_q.chars().count() > DISCORD_EMBED_TITLE_LIMIT {
         title_no_q = safe_truncate(&title_no_q, DISCORD_EMBED_TITLE_LIMIT);
         warn!("Title truncated to fit Discord limits: {} chars", title_no_q.chars().count());
@@ -460,6 +461,7 @@ impl RssSubscriber {
           let chunk_size = std::cmp::min(MAX_CHUNK_SIZE, remaining);
           let mut end_pos = current_pos + chunk_size;
           
+          // Try to break at word boundary if not at the end
           if end_pos < chars.len() {
             let search_start = std::cmp::max(current_pos, end_pos.saturating_sub(TRUNCATION_BUFFER));
             if let Some(space_pos) = chars[search_start..end_pos].iter().rposition(|&c| c == ' ') {
@@ -476,13 +478,22 @@ impl RssSubscriber {
           chunks.push(chunk);
           current_pos = end_pos;
           
+          // Skip whitespace at the beginning of next chunk
           while current_pos < chars.len() && chars[current_pos].is_whitespace() {
             current_pos += 1;
           }
         }
 
         let first_description = chunks.first().unwrap_or(&String::new()).clone();
-        Self::send_embed_message(state, channel_id, &title_no_q, &first_description, &valid_items).await?;
+        info!("Sending first chunk with title length: {}, description length: {}", title_no_q.chars().count(), first_description.chars().count());
+        
+        match Self::send_embed_message(state, channel_id, &title_no_q, &first_description, &valid_items).await {
+          Ok(_) => info!("First chunk sent successfully"),
+          Err(e) => {
+            error!("Failed to send first chunk: {}", e);
+            return Err(e);
+          }
+        }
 
         for (i, chunk) in chunks.iter().skip(1).enumerate() {
           let continuation_title = format!("{}{}{})", &title_no_q, CONTINUATION_PREFIX, i + 2);
@@ -492,10 +503,25 @@ impl RssSubscriber {
             continuation_title
           };
 
-          Self::send_embed_message(state, channel_id, &safe_continuation_title, chunk, &valid_items).await?;
+          info!("Sending continuation chunk {} with title length: {}, description length: {}", i + 2, safe_continuation_title.chars().count(), chunk.chars().count());
+          
+          match Self::send_embed_message(state, channel_id, &safe_continuation_title, chunk, &valid_items).await {
+            Ok(_) => info!("Continuation chunk {} sent successfully", i + 2),
+            Err(e) => {
+              error!("Failed to send continuation chunk {}: {}", i + 2, e);
+              return Err(e);
+            }
+          }
         }
       } else {
-        Self::send_embed_message(state, channel_id, &title_no_q, &sanitized_description, &valid_items).await?;
+        info!("Sending single message with title length: {}, description length: {}", title_no_q.chars().count(), sanitized_description.chars().count());
+        match Self::send_embed_message(state, channel_id, &title_no_q, &sanitized_description, &valid_items).await {
+          Ok(_) => info!("Single message sent successfully"),
+          Err(e) => {
+            error!("Failed to send single message: {}", e);
+            return Err(e);
+          }
+        }
       }
       
       unsafe {
@@ -521,6 +547,7 @@ impl RssSubscriber {
     let sanitized_description = sanitize_discord_text(description);
     let sanitized_footer = sanitize_discord_text(&options::CONFIG.footer_text);
 
+    // Validate embed content before sending
     if let Err(validation_error) = validate_embed_content(&sanitized_title, &sanitized_description, &sanitized_footer) {
       error!("Embed validation failed: {}", validation_error);
       return Err(validation_error.into());
