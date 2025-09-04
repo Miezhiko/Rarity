@@ -22,11 +22,77 @@ use twilight_util::builder::embed::{
   EmbedFooterBuilder
 };
 
+const DISCORD_EMBED_TITLE_LIMIT: usize = 256;
+const DISCORD_EMBED_DESCRIPTION_LIMIT: usize = 4096;
+const DISCORD_EMBED_FOOTER_LIMIT: usize = 2048;
+const DISCORD_EMBED_TOTAL_LIMIT: usize = 6000;
+const MAX_CHUNK_SIZE: usize = 3900; // Leave some buffer for continuation text
+
+const TRUNCATION_BUFFER: usize = 50;
+const CONTINUATION_SUFFIX: &str = "...";
+const CONTINUATION_PREFIX: &str = " (часть ";
+
 fn remove_quotes(s: &str) -> String {
   s.strip_prefix('"')
    .and_then(|stripped| stripped.strip_suffix('"'))
    .map(|stripped| stripped.to_string())
    .unwrap_or_else(|| s.to_string())
+}
+
+fn sanitize_discord_text(text: &str) -> String {
+  text.chars()
+    .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
+    .collect::<String>()
+    .trim()
+    .to_string()
+}
+
+fn safe_truncate(text: &str, max_len: usize) -> String {
+  if text.chars().count() <= max_len {
+    return text.to_string();
+  }
+  
+  let truncate_at = max_len.saturating_sub(CONTINUATION_SUFFIX.len());
+  let mut result: String = text.chars().take(truncate_at).collect();
+  
+  // Ensure we don't break in the middle of a word
+  if let Some(last_space) = result.rfind(' ') {
+    if last_space > truncate_at.saturating_sub(TRUNCATION_BUFFER) {
+      result.truncate(last_space);
+    }
+  }
+  
+  result.push_str(CONTINUATION_SUFFIX);
+  result
+}
+
+fn validate_embed_content(title: &str, description: &str, footer: &str) -> Result<(), String> {
+  if title.trim().is_empty() {
+    return Err("Title cannot be empty".to_string());
+  }
+  
+  if description.trim().is_empty() {
+    return Err("Description cannot be empty".to_string());
+  }
+  
+  if title.chars().count() > DISCORD_EMBED_TITLE_LIMIT {
+    return Err(format!("Title too long: {} > {}", title.chars().count(), DISCORD_EMBED_TITLE_LIMIT));
+  }
+  
+  if description.chars().count() > DISCORD_EMBED_DESCRIPTION_LIMIT {
+    return Err(format!("Description too long: {} > {}", description.chars().count(), DISCORD_EMBED_DESCRIPTION_LIMIT));
+  }
+  
+  if footer.chars().count() > DISCORD_EMBED_FOOTER_LIMIT {
+    return Err(format!("Footer too long: {} > {}", footer.chars().count(), DISCORD_EMBED_FOOTER_LIMIT));
+  }
+  
+  let total_length = title.chars().count() + description.chars().count() + footer.chars().count();
+  if total_length > DISCORD_EMBED_TOTAL_LIMIT {
+    return Err(format!("Total embed content too long: {} > {}", total_length, DISCORD_EMBED_TOTAL_LIMIT));
+  }
+  
+  Ok(())
 }
 
 impl RssSubscriber {
@@ -235,17 +301,24 @@ impl RssSubscriber {
             .map(|dt| dt.timestamp() as u64)
             .unwrap_or(0);
           
+          let title = entry.title
+            .map(|t| sanitize_discord_text(&t.content))
+            .unwrap_or_else(|| "No title".to_string());
+          
+          let link = entry.links.first()
+            .map(|l| l.href.clone())
+            .unwrap_or_else(|| "No link".to_string());
+          
+          let description = entry.content
+            .and_then(|c| c.body)
+            .or_else(|| entry.summary.map(|s| s.content))
+            .map(|d| sanitize_discord_text(&d))
+            .unwrap_or_else(|| "No description".to_string());
+
           let item = FeedItem {
-            title: entry.title
-              .map(|t| t.content)
-              .unwrap_or_else(|| "No title".to_string()),
-            link: entry.links.first()
-              .map(|l| l.href.clone())
-              .unwrap_or_else(|| "No link".to_string()),
-            description: entry.content
-              .and_then(|c| c.body)
-              .or_else(|| entry.summary.map(|s| s.content))
-              .unwrap_or_else(|| "No description".to_string()),
+            title,
+            link,
+            description,
             published_timestamp
           };
           items.push(item);
@@ -289,7 +362,7 @@ impl RssSubscriber {
             });
           
           let title = entry.title
-            .map(|t| t.content.trim().to_string())
+            .map(|t| sanitize_discord_text(&t.content))
             .unwrap_or_else(|| "No title".to_string());
           
           let link = entry.links.iter()
@@ -298,8 +371,8 @@ impl RssSubscriber {
             .unwrap_or_else(|| "No link".to_string());
           
           let description = entry.summary
-            .map(|s| s.content.trim().to_string())
-            .or_else(|| entry.content.and_then(|c| c.body))
+            .map(|s| sanitize_discord_text(&s.content))
+            .or_else(|| entry.content.and_then(|c| c.body.map(|b| sanitize_discord_text(&b))))
             .unwrap_or_else(|| "No description".to_string());
 
           let item = FeedItem {
@@ -339,14 +412,14 @@ impl RssSubscriber {
     // Concatenate all titles
     let all_titles: Vec<String> = valid_items
       .iter()
-      .map(|item| item.title.trim().to_string())
+      .map(|item| sanitize_discord_text(&item.title))
       .collect();
     let combined_titles = all_titles.join(", ");
 
     // Concatenate all descriptions
     let all_descriptions: Vec<String> = valid_items
       .iter()
-      .map(|item| item.description.trim().to_string())
+      .map(|item| sanitize_discord_text(&item.description))
       .collect();
     let combined_descriptions = all_descriptions.join(". ");
 
@@ -367,47 +440,62 @@ impl RssSubscriber {
       let rarity_response_desc =
         ollama::generate_ollama_response(&message_desc, state).await?;
 
-      let mut title_no_q = remove_quotes(&rarity_response_title);
+      let mut title_no_q = sanitize_discord_text(&remove_quotes(&rarity_response_title));
+      let sanitized_description = sanitize_discord_text(&rarity_response_desc);
 
-      if title_no_q.chars().count() > 256 {
-        title_no_q = title_no_q.chars().take(250).collect();
-        title_no_q.push_str("...");
-        warn!("Title truncated to fit Discord limits");
+      if title_no_q.chars().count() > DISCORD_EMBED_TITLE_LIMIT {
+        title_no_q = safe_truncate(&title_no_q, DISCORD_EMBED_TITLE_LIMIT);
+        warn!("Title truncated to fit Discord limits: {} chars", title_no_q.chars().count());
       }
 
-      if rarity_response_desc.chars().count() > 4000 {
-        warn!("Description too long ({}), splitting into multiple messages", rarity_response_desc.chars().count());
+      if sanitized_description.chars().count() > DISCORD_EMBED_DESCRIPTION_LIMIT {
+        warn!("Description too long ({}), splitting into multiple messages", sanitized_description.chars().count());
         
         let mut chunks = Vec::new();
-        let chars: Vec<char> = rarity_response_desc.chars().collect();
+        let chars: Vec<char> = sanitized_description.chars().collect();
         let mut current_pos = 0;
         
         while current_pos < chars.len() {
-          let end_pos = std::cmp::min(current_pos + 4000, chars.len());
+          let remaining = chars.len() - current_pos;
+          let chunk_size = std::cmp::min(MAX_CHUNK_SIZE, remaining);
+          let mut end_pos = current_pos + chunk_size;
+          
+          if end_pos < chars.len() {
+            let search_start = std::cmp::max(current_pos, end_pos.saturating_sub(TRUNCATION_BUFFER));
+            if let Some(space_pos) = chars[search_start..end_pos].iter().rposition(|&c| c == ' ') {
+              end_pos = search_start + space_pos;
+            }
+          }
+          
           let mut chunk: String = chars[current_pos..end_pos].iter().collect();
           
           if end_pos < chars.len() {
-            chunk.push_str("...");
+            chunk.push_str(CONTINUATION_SUFFIX);
           }
           
           chunks.push(chunk);
           current_pos = end_pos;
+          
+          while current_pos < chars.len() && chars[current_pos].is_whitespace() {
+            current_pos += 1;
+          }
         }
 
         let first_description = chunks.first().unwrap_or(&String::new()).clone();
         Self::send_embed_message(state, channel_id, &title_no_q, &first_description, &valid_items).await?;
 
         for (i, chunk) in chunks.iter().skip(1).enumerate() {
-          let mut continuation_title = format!("{} (часть {})", &title_no_q, i + 2);
-          if continuation_title.chars().count() > 256 {
-            continuation_title = continuation_title.chars().take(250).collect::<String>();
-            continuation_title.push_str("...");
+          let continuation_title = format!("{}{}{})", &title_no_q, CONTINUATION_PREFIX, i + 2);
+          let safe_continuation_title = if continuation_title.chars().count() > DISCORD_EMBED_TITLE_LIMIT {
+            safe_truncate(&continuation_title, DISCORD_EMBED_TITLE_LIMIT)
+          } else {
+            continuation_title
           };
 
-          Self::send_embed_message(state, channel_id, &continuation_title, chunk, &valid_items).await?;
+          Self::send_embed_message(state, channel_id, &safe_continuation_title, chunk, &valid_items).await?;
         }
       } else {
-        Self::send_embed_message(state, channel_id, &title_no_q, &rarity_response_desc, &valid_items).await?;
+        Self::send_embed_message(state, channel_id, &title_no_q, &sanitized_description, &valid_items).await?;
       }
       
       unsafe {
@@ -429,14 +517,13 @@ impl RssSubscriber {
     description: &str,
     items: &[&FeedItem]
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if title.is_empty() {
-      warn!("Empty title, skipping message");
-      return Ok(());
-    }
+    let sanitized_title = sanitize_discord_text(title);
+    let sanitized_description = sanitize_discord_text(description);
+    let sanitized_footer = sanitize_discord_text(&options::CONFIG.footer_text);
 
-    if description.is_empty() {
-      warn!("Empty description, skipping message");
-      return Ok(());
+    if let Err(validation_error) = validate_embed_content(&sanitized_title, &sanitized_description, &sanitized_footer) {
+      error!("Embed validation failed: {}", validation_error);
+      return Err(validation_error.into());
     }
 
     let latest_timestamp = items
@@ -455,18 +542,25 @@ impl RssSubscriber {
         });
 
     let embed = EmbedBuilder::new()
-      .title(title)
-      .description(description)
+      .title(sanitized_title)
+      .description(sanitized_description)
       .color(0xFF69B4)
       .timestamp(timestamp)
-      .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
+      .footer(EmbedFooterBuilder::new(sanitized_footer).build())
       .build();
 
-    state.http
+    match state.http
       .create_message(channel_id)
       .embeds(&[embed])
-      .await?;
-    
-    Ok(())
+      .await {
+        Ok(_) => {
+          info!("Successfully sent embed message");
+          Ok(())
+        }
+        Err(e) => {
+          error!("Failed to send embed message: {}", e);
+          Err(e.into())
+        }
+      }
   }
 }
