@@ -1,13 +1,9 @@
 use serde::Deserialize;
 
-// nice models list:
-// mistral-small3.2:latest
-// gpt-oss:20b ?
-
 #[derive(Clone, Deserialize)]
 pub struct IOptions {
   pub discord: String,
-  pub model: String,
+  pub models: Vec<String>,
   pub bot_name: String,
   pub system_prompt: String,
   pub footer_text: String,

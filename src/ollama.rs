@@ -11,6 +11,7 @@ use std::time::Duration;
 use std::borrow::Cow;
 
 use tokio::time::timeout;
+use rand::Rng;
 
 use tracing::{error, info, warn};
 use regex::Regex;
@@ -21,6 +22,7 @@ use async_recursion::async_recursion;
 
 const OLLAMA_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const MAX_RESTART_ATTEMPTS: u8 = 3;
+const RESTART_DELAY: Duration = Duration::from_secs(10);
 
 static XML_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
   Regex::new(r"<[^>]+>").expect("Failed to compile XML tag regex")
@@ -29,6 +31,16 @@ static XML_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
 #[inline]
 fn remove_xml_tags(input: &str) -> Cow<'_, str> {
   XML_TAG_REGEX.replace_all(input, "")
+}
+
+fn get_random_model() -> &'static str {
+  let models = &options::CONFIG.models;
+  if models.is_empty() {
+    warn!("No models configured, falling back to default");
+    return "mistral-small3.2:latest";
+  }
+  let idx = rand::rng().random_range(0..models.len());
+  &models[idx]
 }
 
 pub async fn generate_ollama_response(prompt: &str, state: &State) -> Result<String> {
@@ -65,24 +77,20 @@ async fn generate_ollama_response_with_retry(
       warn!( "Ollama request timed out after {} minutes, attempting restart"
            , OLLAMA_TIMEOUT.as_secs() / 60 );
       
-      match restart_ollama().await {
-        Ok(_) => {
-          info!("Ollama restarted successfully, retrying request");
-          tokio::time::sleep(Duration::from_secs(10)).await;
-          generate_ollama_response_with_retry(prompt, state, attempt + 1).await
-        }
-        Err(e) => {
-          error!("Failed to restart Ollama: {}", e);
-          anyhow::bail!("Ollama timeout and restart failed: {}", e);
-        }
-      }
+      restart_ollama().await?;
+      info!("Ollama restarted successfully, retrying request");
+      tokio::time::sleep(RESTART_DELAY).await;
+      generate_ollama_response_with_retry(prompt, state, attempt + 1).await
     }
   }
 }
 
 async fn make_ollama_request(prompt: &str, state: &State) -> Result<String> {
+  let selected_model = get_random_model();
+  info!("Using model: {}", selected_model);
+
   let request_body = json!({
-    "model": options::CONFIG.model,
+    "model": selected_model,
     "system": options::CONFIG.system_prompt,
     "prompt": prompt,
     "stream": false,
@@ -120,13 +128,13 @@ async fn make_ollama_request(prompt: &str, state: &State) -> Result<String> {
 async fn restart_ollama() -> Result<()> {
   info!("Restarting Ollama service...");
   
-  let start_output = Command::new("sudo")
+  let restart_output = Command::new("sudo")
     .args(["systemctl", "restart", "ollama"])
     .output()
-    .context("Failed to execute systemctl start command")?;
+    .context("Failed to execute systemctl restart command")?;
 
-  if !start_output.status.success() {
-    let stderr = String::from_utf8_lossy(&start_output.stderr);
+  if !restart_output.status.success() {
+    let stderr = String::from_utf8_lossy(&restart_output.stderr);
     anyhow::bail!("Failed to restart Ollama service: {}", stderr);
   }
 
@@ -135,14 +143,38 @@ async fn restart_ollama() -> Result<()> {
     .output()
     .context("Failed to check Ollama service status")?;
 
-  let status_str = String::from_utf8_lossy(&status_output.stdout);
-  let status = status_str.trim();
-  if status != "active" {
+  let status_output_stdout = status_output.stdout;
+  let status = String::from_utf8_lossy(&status_output_stdout);
+  let status_trimmed = status.trim();
+  if status_trimmed != "active" {
     anyhow::bail!("Ollama service is not active after restart. Status: {}", status);
   }
 
   info!("Ollama service restarted successfully");
   Ok(())
+}
+
+fn build_chat_history<I>(messages: I, author: &str, input: &str) -> String
+  where
+ I: Iterator<Item = (String, String)>
+{
+  let mut chat_history = String::new();
+  
+  for (msg_author, message) in messages {
+    chat_history.push_str(&msg_author);
+    chat_history.push_str(": ");
+    chat_history.push_str(&message);
+    chat_history.push('\n');
+  }
+  
+  chat_history.push_str(author);
+  chat_history.push_str(": ");
+  chat_history.push_str(input);
+  chat_history.push('\n');
+  chat_history.push_str(&options::CONFIG.bot_name);
+  chat_history.push_str(": ");
+  
+  chat_history
 }
 
 pub async fn generate_ollama_with_history(
@@ -151,28 +183,14 @@ pub async fn generate_ollama_with_history(
     history: &ConversationHistory,
     state: &State,
 ) -> Result<String> {
-  let estimated_capacity = history.messages.len() * 100 + input.len() + author.len() + 50;
-  let mut chat_history = String::with_capacity(estimated_capacity);
+  let messages: Vec<(String, String)> = history.messages.iter().flat_map(|(msg_author, user_msg, bot_response)| {
+    [
+      (msg_author.to_string(), user_msg.to_string()),
+      (options::CONFIG.bot_name.to_string(), bot_response.to_string()),
+    ]
+  }).collect();
   
-  for (msg_author, user_msg, bot_response) in &history.messages {
-    chat_history.reserve(msg_author.len() + user_msg.len() + bot_response.len() + 10);
-    chat_history.push_str(msg_author);
-    chat_history.push_str(": ");
-    chat_history.push_str(user_msg);
-    chat_history.push('\n');
-    chat_history.push_str(&options::CONFIG.bot_name);
-    chat_history.push_str(": ");
-    chat_history.push_str(bot_response);
-    chat_history.push('\n');
-  }
-
-  chat_history.push_str(author);
-  chat_history.push_str(": ");
-  chat_history.push_str(input);
-  chat_history.push('\n');
-  chat_history.push_str(&options::CONFIG.bot_name);
-  chat_history.push_str(": ");
-  
+  let chat_history = build_chat_history(messages.into_iter(), author, input);
   generate_ollama_response(&chat_history, state).await
 }
 
@@ -182,23 +200,11 @@ pub async fn generate_ollama_with_chat(
     chat: &GlobalConversationHistory,
     state: &State,
 ) -> Result<String> {
-  let estimated_capacity = chat.messages.len() * 80 + input.len() + author.len() + 50;
-  let mut chat_history = String::with_capacity(estimated_capacity);
-  
-  for (msg_author, message) in &chat.messages {
-    chat_history.reserve(msg_author.len() + message.len() + 4);
-    chat_history.push_str(msg_author);
-    chat_history.push_str(": ");
-    chat_history.push_str(message);
-    chat_history.push('\n');
-  }
-  
-  chat_history.push_str(author);
-  chat_history.push_str(": ");
-  chat_history.push_str(input);
-  chat_history.push('\n');
-  chat_history.push_str(&options::CONFIG.bot_name);
-  chat_history.push_str(": ");
-  
+  let messages: Vec<(String, String)> =
+    chat.messages.iter()
+                 .map(|(author, message)| (author.to_string(), message.to_string()))
+                 .collect();
+
+  let chat_history = build_chat_history(messages.into_iter(), author, input);
   generate_ollama_response(&chat_history, state).await
 }
