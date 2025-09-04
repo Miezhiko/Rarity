@@ -376,16 +376,17 @@ impl RssSubscriber {
       }
 
       if rarity_response_desc.chars().count() > 4000 {
-        warn!("Description too long ({}), splitting into multiple messages", rarity_response_desc.len());
+        warn!("Description too long ({}), splitting into multiple messages", rarity_response_desc.chars().count());
         
         let mut chunks = Vec::new();
+        let chars: Vec<char> = rarity_response_desc.chars().collect();
         let mut current_pos = 0;
         
-        while current_pos < rarity_response_desc.len() {
-          let end_pos = std::cmp::min(current_pos + 4000, rarity_response_desc.len());
-          let mut chunk = rarity_response_desc[current_pos..end_pos].to_string();
+        while current_pos < chars.len() {
+          let end_pos = std::cmp::min(current_pos + 4000, chars.len());
+          let mut chunk: String = chars[current_pos..end_pos].iter().collect();
           
-          if end_pos < rarity_response_desc.len() {
+          if end_pos < chars.len() {
             chunk.push_str("...");
           }
           
