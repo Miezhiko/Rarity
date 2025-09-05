@@ -61,7 +61,7 @@ async fn generate_ollama_response_with_retry(
   
   let result = timeout(
     OLLAMA_TIMEOUT,
-    make_ollama_request(prompt, state, true)
+    make_ollama_request(prompt, state)
   ).await;
 
   match result {
@@ -85,27 +85,18 @@ async fn generate_ollama_response_with_retry(
   }
 }
 
-async fn make_ollama_request(prompt: &str, state: &State, add_system_prompt: bool) -> Result<String> {
+async fn make_ollama_request(prompt: &str, state: &State) -> Result<String> {
   let selected_model = get_random_model();
   info!("Using model: {}", selected_model);
 
-  let full_prompt = if add_system_prompt {
-    format!("{}\n\n{}", options::CONFIG.system_prompt, prompt)
-  } else {
-    prompt.to_string()
-  };
-
   let request_body = json!({
     "model": selected_model,
-    "prompt": full_prompt,
+    "system": options::CONFIG.system_prompt,
+    "prompt": prompt,
     "stream": false,
-    "options": {
-      "num_predict": 4096,
-      "temperature": 0.7,
-      "top_p": 0.9,
-      "repeat_penalty": 1.1,
-      "num_ctx": 8192
-    }
+    "max_tokens": 500_u16,
+    "temperature": 0.7_f32,
+    "top_p": 0.9_f32
   });
 
   let response = state
@@ -117,9 +108,7 @@ async fn make_ollama_request(prompt: &str, state: &State, add_system_prompt: boo
     .context("Failed to connect to Ollama API")?;
 
   if !response.status().is_success() {
-    let status = response.status();
-    let error_text = response.text().await.unwrap_or_default();
-    anyhow::bail!("Ollama API returned error status: {} - {}", status, error_text);
+    anyhow::bail!("Ollama API returned error status: {}", response.status());
   }
 
   let response_json: Value = response
@@ -133,12 +122,7 @@ async fn make_ollama_request(prompt: &str, state: &State, add_system_prompt: boo
     .context("Missing or invalid 'response' field in Ollama output")?;
 
   let processed = remove_xml_tags(generated_text);
-  let result = processed.trim().to_string();
-  
-  // Log the response for debugging
-  info!("Generated response length: {} characters", result.len());
-  
-  Ok(result)
+  Ok(processed.into_owned())
 }
 
 async fn restart_ollama() -> Result<()> {
@@ -176,10 +160,6 @@ fn build_chat_history<I>(messages: I, author: &str, input: &str) -> String
 {
   let mut chat_history = String::new();
   
-  // Add system prompt at the beginning
-  chat_history.push_str(&options::CONFIG.system_prompt);
-  chat_history.push_str("\n\n");
-  
   for (msg_author, message) in messages {
     chat_history.push_str(&msg_author);
     chat_history.push_str(": ");
@@ -211,49 +191,7 @@ pub async fn generate_ollama_with_history(
   }).collect();
   
   let chat_history = build_chat_history(messages.into_iter(), author, input);
-  
-  // Use direct request for chat history to avoid double system prompt
-  let selected_model = get_random_model();
-  info!("Using model for chat: {}", selected_model);
-
-  let request_body = json!({
-    "model": selected_model,
-    "prompt": chat_history,
-    "stream": false,
-    "options": {
-      "num_predict": 4096,
-      "temperature": 0.7,
-      "top_p": 0.9,
-      "repeat_penalty": 1.1,
-      "num_ctx": 8192,
-      "stop": ["Human:", "User:", &format!("{}:", author)]
-    }
-  });
-
-  let response = state
-    .request_client
-    .post("http://localhost:11434/api/generate")
-    .json(&request_body)
-    .send()
-    .await
-    .context("Failed to connect to Ollama API")?;
-
-  if !response.status().is_success() {
-    anyhow::bail!("Ollama API returned error status: {}", response.status());
-  }
-
-  let response_json: Value = response
-    .json()
-    .await
-    .context("Failed to parse Ollama JSON response")?;
-
-  let generated_text = response_json
-    .get("response")
-    .and_then(Value::as_str)
-    .context("Missing or invalid 'response' field in Ollama output")?;
-
-  let processed = remove_xml_tags(generated_text);
-  Ok(processed.trim().to_string())
+  generate_ollama_response(&chat_history, state).await
 }
 
 pub async fn generate_ollama_with_chat(
@@ -268,47 +206,5 @@ pub async fn generate_ollama_with_chat(
                  .collect();
 
   let chat_history = build_chat_history(messages.into_iter(), author, input);
-  
-  // Use direct request for chat history to avoid double system prompt
-  let selected_model = get_random_model();
-  info!("Using model for global chat: {}", selected_model);
-
-  let request_body = json!({
-    "model": selected_model,
-    "prompt": chat_history,
-    "stream": false,
-    "options": {
-      "num_predict": 4096,
-      "temperature": 0.7,
-      "top_p": 0.9,
-      "repeat_penalty": 1.1,
-      "num_ctx": 8192,
-      "stop": ["Human:", "User:", &format!("{}:", author)]
-    }
-  });
-
-  let response = state
-    .request_client
-    .post("http://localhost:11434/api/generate")
-    .json(&request_body)
-    .send()
-    .await
-    .context("Failed to connect to Ollama API")?;
-
-  if !response.status().is_success() {
-    anyhow::bail!("Ollama API returned error status: {}", response.status());
-  }
-
-  let response_json: Value = response
-    .json()
-    .await
-    .context("Failed to parse Ollama JSON response")?;
-
-  let generated_text = response_json
-    .get("response")
-    .and_then(Value::as_str)
-    .context("Missing or invalid 'response' field in Ollama output")?;
-
-  let processed = remove_xml_tags(generated_text);
-  Ok(processed.trim().to_string())
+  generate_ollama_response(&chat_history, state).await
 }
