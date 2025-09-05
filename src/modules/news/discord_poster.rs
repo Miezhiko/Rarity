@@ -103,7 +103,8 @@ impl DiscordPoster {
                                       , &valid_items ).await {
           Ok(_) => info!("Single message sent successfully"),
           Err(e) => {
-            error!("Failed to send single message: {}", e);
+            error!("Failed to send single message: {}. Embed content: title='{}', description='{}', items={:?}",
+                   e, title_no_q, sanitized_description, valid_items);
             return Err(e);
           }
         }
@@ -265,10 +266,22 @@ impl DiscordPoster {
   }
 
   fn remove_quotes(s: &str) -> String {
-    s.strip_prefix('"')
-     .and_then(|stripped| stripped.strip_suffix('"'))
-     .map(|stripped| stripped.to_string())
-     .unwrap_or_else(|| s.to_string())
+    let mut result = s.to_string();
+    loop {
+      let trimmed = result
+        .strip_prefix('"')
+        .or_else(|| result.strip_prefix('\''))
+        .and_then(|stripped| stripped.strip_suffix('"').or_else(|| stripped.strip_suffix('\'')));
+
+      match trimmed {
+        Some(stripped)  => result = stripped.to_string(),
+        None            => break,
+      }
+    }
+
+    info!("Title: '{}'", result);
+
+    result
   }
 
   fn sanitize_discord_text(text: &str) -> String {
