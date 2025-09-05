@@ -31,7 +31,6 @@ impl DiscordPoster {
     channel_id: Id<ChannelMarker>, 
     items: &[FeedItem]
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Filter out empty items and sanitize content
     let valid_items: Vec<&FeedItem> = items
       .iter()
       .filter(|item| !item.title.trim().is_empty() && !item.description.trim().is_empty())
@@ -42,14 +41,12 @@ impl DiscordPoster {
       return Ok(());
     }
 
-    // Concatenate all titles
     let all_titles: Vec<String> = valid_items
       .iter()
       .map(|item| Self::sanitize_discord_text(&item.title))
       .collect();
     let combined_titles = all_titles.join(", ");
 
-    // Concatenate all descriptions
     let all_descriptions: Vec<String> = valid_items
       .iter()
       .map(|item| Self::sanitize_discord_text(&item.description))
@@ -92,10 +89,18 @@ impl DiscordPoster {
 
       if sanitized_description.chars().count() > DISCORD_EMBED_DESCRIPTION_LIMIT {
         warn!("Description too long ({}), splitting into multiple messages", sanitized_description.chars().count());
-        Self::send_chunked_message(state, channel_id, &title_no_q, &sanitized_description, &valid_items).await?;
+        Self::send_chunked_message( state
+                                  , channel_id
+                                  , &title_no_q
+                                  , &sanitized_description
+                                  , &valid_items ).await?;
       } else {
         info!("Sending single message with title length: {}, description length: {}", title_no_q.chars().count(), sanitized_description.chars().count());
-        match Self::send_embed_message(state, channel_id, &title_no_q, &sanitized_description, &valid_items).await {
+        match Self::send_embed_message( state
+                                      , channel_id
+                                      , &title_no_q
+                                      , &sanitized_description
+                                      , &valid_items ).await {
           Ok(_) => info!("Single message sent successfully"),
           Err(e) => {
             error!("Failed to send single message: {}", e);
@@ -169,7 +174,8 @@ impl DiscordPoster {
 
     for (i, chunk) in chunks.iter().skip(1).enumerate() {
       let continuation_title = format!("{}{}{})", title, CONTINUATION_PREFIX, i + 2);
-      let safe_continuation_title = if continuation_title.chars().count() > DISCORD_EMBED_TITLE_LIMIT {
+      let safe_continuation_title = if continuation_title.chars()
+                                                         .count() > DISCORD_EMBED_TITLE_LIMIT {
         Self::safe_truncate(&continuation_title, DISCORD_EMBED_TITLE_LIMIT)
       } else {
         continuation_title
@@ -177,7 +183,11 @@ impl DiscordPoster {
 
       info!("Sending continuation chunk {} with title length: {}, description length: {}", i + 2, safe_continuation_title.chars().count(), chunk.chars().count());
       
-      match Self::send_embed_message(state, channel_id, &safe_continuation_title, chunk, items).await {
+      match Self::send_embed_message( state
+                                    , channel_id
+                                    , &safe_continuation_title
+                                    , chunk
+                                    , items ).await {
         Ok(_) => info!("Continuation chunk {} sent successfully", i + 2),
         Err(e) => {
           error!("Failed to send continuation chunk {}: {}", i + 2, e);
@@ -196,12 +206,14 @@ impl DiscordPoster {
     description: &str,
     items: &[&FeedItem]
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let sanitized_title = Self::sanitize_discord_text(title);
+    let sanitized_title       = Self::sanitize_discord_text(title);
     let sanitized_description = Self::sanitize_discord_text(description);
-    let sanitized_footer = Self::sanitize_discord_text(&options::CONFIG.footer_text);
+    let footer_text = format!("{} | v{}", options::CONFIG.footer_text, options::VERSION);
 
-    // Validate embed content before sending
-    if let Err(validation_error) = Self::validate_embed_content(&sanitized_title, &sanitized_description, &sanitized_footer) {
+    if let Err(validation_error) =
+        Self::validate_embed_content( &sanitized_title
+                                    , &sanitized_description
+                                    , &footer_text ) {
       error!("Embed validation failed: {}", validation_error);
       return Err(validation_error.into());
     }
@@ -234,7 +246,7 @@ impl DiscordPoster {
       .description(sanitized_description)
       .color(0xFF69B4)
       .timestamp(timestamp)
-      .footer(EmbedFooterBuilder::new(sanitized_footer).build())
+      .footer(EmbedFooterBuilder::new(footer_text).build())
       .build();
 
     match state.http
@@ -305,20 +317,27 @@ impl DiscordPoster {
     }
     
     if title.chars().count() > DISCORD_EMBED_TITLE_LIMIT {
-      return Err(format!("Title too long: {} > {}", title.chars().count(), DISCORD_EMBED_TITLE_LIMIT));
+      return Err(format!("Title too long: {} > {}", title.chars()
+                                                         .count()
+                                                  , DISCORD_EMBED_TITLE_LIMIT));
     }
     
     if description.chars().count() > DISCORD_EMBED_DESCRIPTION_LIMIT {
-      return Err(format!("Description too long: {} > {}", description.chars().count(), DISCORD_EMBED_DESCRIPTION_LIMIT));
+      return Err(format!("Description too long: {} > {}", description.chars()
+                                                                     .count()
+                                                        , DISCORD_EMBED_DESCRIPTION_LIMIT));
     }
     
     if footer.chars().count() > DISCORD_EMBED_FOOTER_LIMIT {
-      return Err(format!("Footer too long: {} > {}", footer.chars().count(), DISCORD_EMBED_FOOTER_LIMIT));
+      return Err(format!("Footer too long: {} > {}", footer.chars()
+                                                           .count()
+                                                   , DISCORD_EMBED_FOOTER_LIMIT));
     }
     
     let total_length = title.chars().count() + description.chars().count() + footer.chars().count();
     if total_length > DISCORD_EMBED_TOTAL_LIMIT {
-      return Err(format!("Total embed content too long: {} > {}", total_length, DISCORD_EMBED_TOTAL_LIMIT));
+      return Err(format!("Total embed content too long: {} > {}", total_length
+                                                                , DISCORD_EMBED_TOTAL_LIMIT));
     }
     
     Ok(())

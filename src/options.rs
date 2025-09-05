@@ -6,6 +6,7 @@ use crate::types::{
 use once_cell::sync::Lazy;
 
 const DHALL_FILE_NAME: &str = "conf.dhall";
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[allow(clippy::result_large_err)]
 pub static CONFIG: Lazy<IOptions> = Lazy::new(|| {

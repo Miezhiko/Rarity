@@ -16,10 +16,11 @@ pub async fn try_acquire_permit<'a>(state: &'a State, msg: &Message) ->
   match state.generation_lock.try_acquire() {
     Ok(p) => Ok(Some(p)),
     Err(_) => {
+      let footer_text = format!("{} | v{}", options::CONFIG.footer_text, options::VERSION);
       let busy_embed = EmbedBuilder::new()
         .description("Я занята, напиши минут через десять!")
         .color(0xFF69B4)
-        .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
+        .footer(EmbedFooterBuilder::new(&footer_text).build())
         .timestamp(msg.timestamp)
         .build();
 
@@ -36,10 +37,11 @@ pub async fn try_acquire_permit<'a>(state: &'a State, msg: &Message) ->
 }
 
 pub async fn send_response(state: &State, msg: &Message, response: &str) -> anyhow::Result<()> {
+  let footer_text = format!("{} | v{}", options::CONFIG.footer_text, options::VERSION);
   let embed = EmbedBuilder::new()
     .description(response)
     .color(0xFF69B4)
-    .footer(EmbedFooterBuilder::new(&options::CONFIG.footer_text).build())
+    .footer(EmbedFooterBuilder::new(&footer_text).build())
     .timestamp(msg.timestamp)
     .build();
 
