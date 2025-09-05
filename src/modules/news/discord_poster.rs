@@ -264,28 +264,39 @@ impl DiscordPoster {
 
   fn remove_quotes(s: &str) -> String {
     let mut result = s.to_string();
-
-    if result.starts_with("**\"") && result.ends_with("\"**") {
-      result = format!("**{}**", &result[3..result.len()-3]);
-    } else if result.starts_with("**'") && result.ends_with("'**") {
-      result = format!("**{}**", &result[3..result.len()-3]);
+    
+    const BOLD_DOUBLE_START: &str = "**\"";
+    const BOLD_DOUBLE_END: &str   = "\"**";
+    const BOLD_SINGLE_START: &str = "**'";
+    const BOLD_SINGLE_END: &str   = "'**";
+    
+    if result.starts_with(BOLD_DOUBLE_START) && result.ends_with(BOLD_DOUBLE_END) {
+      let start_len = BOLD_DOUBLE_START.len();
+      let end_len = BOLD_DOUBLE_END.len();
+      let content = &result[start_len..result.len() - end_len];
+      result = format!("**{}**", content);
+    } else if result.starts_with(BOLD_SINGLE_START) && result.ends_with(BOLD_SINGLE_END) {
+      let start_len = BOLD_SINGLE_START.len();
+      let end_len = BOLD_SINGLE_END.len();
+      let content = &result[start_len..result.len() - end_len];
+      result = format!("**{}**", content);
     } else if (result.starts_with('"') && result.ends_with('"')) || 
               (result.starts_with('\'') && result.ends_with('\'')) {
-      result = result[1..result.len()-1].to_string();
+      result = result[1..result.len() - 1].to_string();
     }
     
     result = result
       .chars()
       .map(|c| if c.is_control() { ' ' } else { c })
       .collect::<String>();
-
+      
     result = result
       .split_whitespace()
       .collect::<Vec<&str>>()
       .join(" ")
       .trim()
       .to_string();
-
+      
     info!("Title: '{result}'");
     
     result
