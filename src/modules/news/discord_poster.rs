@@ -6,6 +6,9 @@ use crate::{
 };
 
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use regex::Regex;
+
 use twilight_model::id::{Id, marker::{ChannelMarker}};
 use tracing::{info, warn, error};
 use twilight_model::util::Timestamp;
@@ -265,31 +268,35 @@ impl DiscordPoster {
   fn remove_quotes(s: &str) -> String {
     let mut result = s.to_string();
     
-    const BOLD_DOUBLE_START: &str = "**\"";
-    const BOLD_DOUBLE_END: &str   = "\"**";
-    const BOLD_SINGLE_START: &str = "**'";
-    const BOLD_SINGLE_END: &str   = "'**";
+    // ^\s* - start of string with optional whitespace
+    // (\*\*)? - optional bold start (captured in group 1)
+    // ["'] - opening quote (single or double)
+    // (.*?) - content (captured in group 2, non-greedy)
+    // ["'] - closing quote (single or double)
+    // (\*\*)? - optional bold end (captured in group 3)
+    // \s*$ - optional whitespace and end of string
+    let quote_regex = Regex::new(r#"^\s*(\*\*)?["'](.*?)["'](\*\*)?\s*$"#).unwrap();
     
-    if result.starts_with(BOLD_DOUBLE_START) && result.ends_with(BOLD_DOUBLE_END) {
-      let start_len = BOLD_DOUBLE_START.len();
-      let end_len = BOLD_DOUBLE_END.len();
-      let content = &result[start_len..result.len() - end_len];
-      result = format!("**{}**", content);
-    } else if result.starts_with(BOLD_SINGLE_START) && result.ends_with(BOLD_SINGLE_END) {
-      let start_len = BOLD_SINGLE_START.len();
-      let end_len = BOLD_SINGLE_END.len();
-      let content = &result[start_len..result.len() - end_len];
-      result = format!("**{}**", content);
-    } else if (result.starts_with('"') && result.ends_with('"')) || 
-              (result.starts_with('\'') && result.ends_with('\'')) {
-      result = result[1..result.len() - 1].to_string();
+    if let Some(captures) = quote_regex.captures(&result) {
+      let has_bold_start = captures.get(1).is_some();
+      let content = captures.get(2).map_or("", |m| m.as_str());
+      let has_bold_end = captures.get(3).is_some();
+      
+      // If both bold markers are present, preserve them around the content
+      if has_bold_start && has_bold_end {
+        result = format!("**{}**", content);
+      } else {
+        result = content.to_string();
+      }
     }
     
+    // Replace control characters with spaces
     result = result
       .chars()
       .map(|c| if c.is_control() { ' ' } else { c })
       .collect::<String>();
       
+    // Normalize whitespace
     result = result
       .split_whitespace()
       .collect::<Vec<&str>>()
