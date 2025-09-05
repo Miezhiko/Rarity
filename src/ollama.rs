@@ -91,12 +91,14 @@ async fn make_ollama_request(prompt: &str, state: &State) -> Result<String> {
 
   let request_body = json!({
     "model": selected_model,
-    "system": options::CONFIG.system_prompt,
-    "prompt": prompt,
+    "prompt": &format!("{}\n\n{}", options::CONFIG.system_prompt, prompt),
     "stream": false,
-    "max_tokens": 500_u16,
-    "temperature": 0.7_f32,
-    "top_p": 0.9_f32
+    "options": {
+      "num_predict": 4096,
+      "temperature": 0.85,
+      "top_p": 0.85,
+      "repeat_penalty": 1.15
+    }
   });
 
   let response = state
