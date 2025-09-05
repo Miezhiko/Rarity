@@ -55,16 +55,6 @@ impl DiscordPoster {
       .collect();
     let combined_descriptions = all_descriptions.join(". ");
 
-    let message_title = format!(
-      "{}: {}",
-      &options::CONFIG.title_mod_msg, &combined_titles
-    );
-
-    let message_desc = format!(
-      "{}: {}",
-      &options::CONFIG.desc_mod_msg, &combined_descriptions
-    );
-
     let generation_permit = match state.generation_lock.try_acquire() {
       Ok(permit) => permit,
       Err(_) => {
@@ -75,10 +65,14 @@ impl DiscordPoster {
 
     let result = (|| async {
       let rarity_response_title =
-        ollama::generate_ollama_response(&message_title, state).await?;
+        ollama::generate_ollama_response_with_secondary( &combined_titles
+                                                       , &options::CONFIG.title_mod_msg
+                                                       , state ).await?;
 
       let rarity_response_desc =
-        ollama::generate_ollama_response(&message_desc, state).await?;
+        ollama::generate_ollama_response_with_secondary( &combined_descriptions
+                                                       , &options::CONFIG.desc_mod_msg
+                                                       , state ).await?;
 
       let mut title_no_q = Self::sanitize_discord_text(&Self::remove_quotes(&rarity_response_title));
       let sanitized_description = Self::sanitize_discord_text(&rarity_response_desc);
@@ -269,19 +263,16 @@ impl DiscordPoster {
 
   fn remove_quotes(s: &str) -> String {
     let mut result = s.to_string();
-    
-    loop {
-      let trimmed = result
-        .strip_prefix('"')
-        .or_else(|| result.strip_prefix('\''))
-        .and_then(|stripped| stripped.strip_suffix('"').or_else(|| stripped.strip_suffix('\'')));
-      
-      match trimmed {
-        Some(stripped)  => result = stripped.to_string(),
-        None            => break,
-      }
-    }
 
+    if result.starts_with("**\"") && result.ends_with("\"**") {
+      result = format!("**{}**", &result[3..result.len()-3]);
+    } else if result.starts_with("**'") && result.ends_with("'**") {
+      result = format!("**{}**", &result[3..result.len()-3]);
+    } else if (result.starts_with('"') && result.ends_with('"')) || 
+              (result.starts_with('\'') && result.ends_with('\'')) {
+      result = result[1..result.len()-1].to_string();
+    }
+    
     result = result
       .chars()
       .map(|c| if c.is_control() { ' ' } else { c })
@@ -294,7 +285,7 @@ impl DiscordPoster {
       .trim()
       .to_string();
 
-    info!("Title: '{}'", result);
+    info!("Title: '{result}'");
     
     result
   }
