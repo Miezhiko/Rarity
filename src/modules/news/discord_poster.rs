@@ -34,6 +34,7 @@ impl DiscordPoster {
     let valid_items: Vec<&FeedItem> = items
       .iter()
       .filter(|item| !item.title.trim().is_empty() && !item.description.trim().is_empty())
+      .take(5)
       .collect();
 
     if valid_items.is_empty() {
