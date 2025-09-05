@@ -47,6 +47,8 @@ impl DiscordPoster {
       .collect();
     let combined_titles = all_titles.join(", ");
 
+    info!("got news: {combined_titles}");
+
     let all_descriptions: Vec<String> = valid_items
       .iter()
       .map(|item| Self::sanitize_discord_text(&item.description))
@@ -267,20 +269,33 @@ impl DiscordPoster {
 
   fn remove_quotes(s: &str) -> String {
     let mut result = s.to_string();
+    
     loop {
       let trimmed = result
         .strip_prefix('"')
         .or_else(|| result.strip_prefix('\''))
         .and_then(|stripped| stripped.strip_suffix('"').or_else(|| stripped.strip_suffix('\'')));
-
+      
       match trimmed {
         Some(stripped)  => result = stripped.to_string(),
         None            => break,
       }
     }
 
-    info!("Title: '{}'", result);
+    result = result
+      .chars()
+      .map(|c| if c.is_control() { ' ' } else { c })
+      .collect::<String>();
 
+    result = result
+      .split_whitespace()
+      .collect::<Vec<&str>>()
+      .join(" ")
+      .trim()
+      .to_string();
+
+    info!("Title: '{}'", result);
+    
     result
   }
 
@@ -302,20 +317,29 @@ impl DiscordPoster {
   }
 
   fn safe_truncate(text: &str, max_len: usize) -> String {
-    if text.chars().count() <= max_len {
-      return text.to_string();
+    let normalized: String = text
+      .chars()
+      .map(|c| if c.is_control() { ' ' } else { c })
+      .collect::<String>()
+      .split_whitespace()
+      .collect::<Vec<&str>>()
+      .join(" ")
+      .trim()
+      .to_string();
+
+    if normalized.chars().count() <= max_len {
+      return normalized;
     }
-    
+
     let truncate_at = max_len.saturating_sub(CONTINUATION_SUFFIX.len());
-    let mut result: String = text.chars().take(truncate_at).collect();
-    
-    // Ensure we don't break in the middle of a word
+    let mut result: String = normalized.chars().take(truncate_at).collect();
+
     if let Some(last_space) = result.rfind(' ') {
       if last_space > truncate_at.saturating_sub(TRUNCATION_BUFFER) {
         result.truncate(last_space);
       }
     }
-    
+
     result.push_str(CONTINUATION_SUFFIX);
     result
   }

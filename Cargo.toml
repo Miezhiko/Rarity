@@ -1,6 +1,6 @@
 [package]
 name = "rarity"
-version = "0.3.3"
+version = "0.3.5"
 authors = ["Miezhiko"]
 repository = "https://github.com/Miezhiko/Rarity"
 readme = "README.md"
