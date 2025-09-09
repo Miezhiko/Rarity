@@ -1,7 +1,6 @@
 use crate::{
   types::state::State,
-  ollama,
-  commands::rarity
+  modules::{ ollama, discord }
 };
 
 use twilight_model::channel::Message;
@@ -16,7 +15,7 @@ pub async fn speak(
 ) -> anyhow::Result<()> {
   tracing::debug!("speak command in channel {} by {}", msg.channel_id, msg.author.name);
 
-  let permit = match rarity::try_acquire_permit(&state, &msg).await? {
+  let permit = match discord::try_acquire_permit(&state, &msg).await? {
     Some(p) => p,
     None    => return Ok(())
   };
@@ -26,7 +25,7 @@ pub async fn speak(
     .await
     .context("Failed to generate response")?;
 
-  rarity::send_response(&state, &msg, &response).await?;
+  discord::send_response(&state, &msg, &response).await?;
   drop(permit);
 
   Ok(())

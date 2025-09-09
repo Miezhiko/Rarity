@@ -1,8 +1,6 @@
 use crate::{
-  commands::rarity,
-  ollama,
+  modules::{ ollama, discord, state },
   options,
-  state,
   types::state::{ ConversationHistory, State }
 };
 
@@ -20,7 +18,7 @@ pub async fn reply(
   tracing::debug!("reply command in channel {} by {}", msg.channel_id
                                                      , msg.author.name);
 
-  let permit = match rarity::try_acquire_permit(&state, &msg).await? {
+  let permit = match discord::try_acquire_permit(&state, &msg).await? {
     Some(p) => p,
     None    => return Ok(())
   };
@@ -60,7 +58,7 @@ pub async fn reply(
     history_lock.insert(msg.channel_id.to_string(), history);
   }
 
-  rarity::send_response(&state, &msg, &response).await?;
+  discord::send_response(&state, &msg, &response).await?;
   drop(permit);
 
   Ok(())

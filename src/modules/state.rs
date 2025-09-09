@@ -1,6 +1,6 @@
 use crate::{
   types::state::State,
-  state
+  modules::state
 };
 
 pub const HISTORY_LIMIT: usize = 7;

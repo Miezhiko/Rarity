@@ -5,9 +5,7 @@ mod types;
 #[macro_use] mod macros;
 mod modules;
 mod options;
-mod state;
 mod handler;
-mod ollama;
 mod commands;
 
 use crate::{
