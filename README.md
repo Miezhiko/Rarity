@@ -3,14 +3,6 @@
 
 Rarity is a female unicorn pony and one of the main characters of My Little Pony Friendship is Magic. She is Sweetie Belle's older sister and the subject of Spike's long-term crush. Rarity lives and works at her own shop in Ponyville called the Carousel Boutique, where she takes care of her pet Persian cat Opalescence. She represents the element of generosity.
 
-# RSS Fetcher
-
- - Safely fetching news from several RSS instances
- - Mixes them together finding mysterious reasoning
- - Highly customized based on config file
- - In addition to just posting news to discord can talk about them
- - Can just talk in other channels without news context
-
 # Retrieval-Augmented Generation
 
 1. **Question Analysis**: The system analyzes incoming prompts for information-seeking patterns
@@ -19,6 +11,14 @@ Rarity is a female unicorn pony and one of the main characters of My Little Pony
 4. **Context Enhancement**: Retrieved information is added to the prompt context
 5. **Final Response**: The LLM generates a response with access to the retrieved knowledge
 6. **Context**: Keeps context of per-channel conversation, global chat and last posted news
+
+# RSS Fetcher
+
+ - Safely fetching news from several RSS instances
+ - Mixes them together finding mysterious reasoning
+ - Highly customized based on config file
+ - In addition to just posting news to discord can talk about them
+ - Can just talk in other channels without news context
 
 # The LLM can use these operations to query the knowledge base:
 
