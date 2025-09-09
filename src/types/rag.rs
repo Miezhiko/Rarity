@@ -9,7 +9,7 @@ use once_cell::sync::Lazy;
 
 pub static RAG_OLLAMA: Lazy<RagEnabledOllama> = Lazy::new(|| {
   let config = RagConfig {
-    database_path: "knowledge.yaml".to_string(),
+    database_path: "knowledge.yml".to_string(),
     max_terms_per_query: 5,
     max_context_length: 2000,
     api_documentation: include_str!("api_docs.txt").to_string()
@@ -30,7 +30,7 @@ pub struct RagConfig {
 impl Default for RagConfig {
   fn default() -> Self {
     Self {
-      database_path: "knowledge_base.yaml".to_string(),
+      database_path: "knowledge.yml".to_string(),
       max_terms_per_query: 5,
       max_context_length: 2000,
       api_documentation: include_str!("api_docs.txt").to_string()
