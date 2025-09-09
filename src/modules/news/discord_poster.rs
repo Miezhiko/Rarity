@@ -1,6 +1,7 @@
 use crate::{
   types::state::State,
   types::rss::*,
+  types::rag,
   options,
   modules::{ ollama, discord::* }
 };
@@ -58,7 +59,7 @@ impl DiscordPoster {
                                                        , state ).await?;
 
       let rarity_response_desc =
-        ollama::generate_ollama_response_with_secondary( &combined_descriptions
+        rag::RAG_OLLAMA.generate_with_secondary_and_rag( &combined_descriptions
                                                        , &options::CONFIG.desc_mod_msg
                                                        , state ).await?;
 

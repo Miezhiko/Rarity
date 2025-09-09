@@ -1,5 +1,6 @@
 use crate::{
   types::state::{ State, ConversationHistory, GlobalConversationHistory },
+  types::rag,
   options
 };
 
@@ -154,7 +155,7 @@ fn truncate_prompt_smartly(system_prompt: &str, secondary_prompt: Option<&str>, 
   
   let full_prompt = match secondary_prompt {
     Some(secondary) => format!("{}\n\n{}\n\n{}", system_prompt, secondary, user_prompt),
-    None => format!("{}\n\n{}", system_prompt, user_prompt)
+    None            => format!("{}\n\n{}", system_prompt, user_prompt)
   };
   
   if total_tokens <= available_tokens {
@@ -186,7 +187,7 @@ fn truncate_prompt_smartly(system_prompt: &str, secondary_prompt: Option<&str>, 
   
   match secondary_prompt {
     Some(secondary) => format!("{}\n\n{}\n\n{}", system_prompt, secondary, truncated_user),
-    None => format!("{}\n\n{}", system_prompt, truncated_user)
+    None            => format!("{}\n\n{}", system_prompt, truncated_user)
   }
 }
 
@@ -228,10 +229,11 @@ async fn generate_ollama_response_with_retry(
   }
 
   info!("Generating Ollama response (attempt {})", attempt + 1);
-  
   let result = timeout(
     OLLAMA_TIMEOUT,
-    make_ollama_request(prompt, secondary_prompt, state)
+    make_ollama_request( prompt
+                       , secondary_prompt
+                       , state )
   ).await;
 
   match result {
@@ -378,7 +380,10 @@ pub async fn generate_ollama_with_history(
   }).collect();
   
   let chat_history = build_chat_history(messages.into_iter(), author, input);
-  generate_ollama_response(&chat_history, state).await
+
+  // generate_ollama_response(&chat_history, state).await
+  // with RAG:
+  rag::RAG_OLLAMA.generate_smart(&chat_history, state).await
 }
 
 pub async fn generate_ollama_with_chat(
@@ -393,5 +398,8 @@ pub async fn generate_ollama_with_chat(
                  .collect();
 
   let chat_history = build_chat_history(messages.into_iter(), author, input);
-  generate_ollama_response(&chat_history, state).await
+
+  // generate_ollama_response(&chat_history, state).await
+  // with RAG:
+  rag::RAG_OLLAMA.generate_smart(&chat_history, state).await
 }
