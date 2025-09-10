@@ -1,9 +1,9 @@
 use crate::{
   types::state::State,
   types::rss::*,
-  types::rag,
   options,
-  modules::{ ollama, discord::* }
+  modules::{ ollama, discord::* },
+  modules::rag
 };
 
 use twilight_model::id::{Id, marker::{ChannelMarker}};

@@ -1,6 +1,6 @@
 use crate::{
   types::state::{ State, ConversationHistory, GlobalConversationHistory },
-  types::rag,
+  modules::rag,
   options
 };
 
