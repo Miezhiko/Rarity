@@ -380,9 +380,6 @@ pub async fn generate_ollama_with_history(
   }).collect();
   
   let chat_history = build_chat_history(messages.into_iter(), author, input);
-
-  // generate_ollama_response(&chat_history, state).await
-  // with RAG:
   rag::RAG_OLLAMA.generate_smart(&chat_history, state).await
 }
 
@@ -398,8 +395,5 @@ pub async fn generate_ollama_with_chat(
                  .collect();
 
   let chat_history = build_chat_history(messages.into_iter(), author, input);
-
-  // generate_ollama_response(&chat_history, state).await
-  // with RAG:
   rag::RAG_OLLAMA.generate_smart(&chat_history, state).await
 }
