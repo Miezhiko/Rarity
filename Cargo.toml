@@ -1,6 +1,6 @@
 [package]
 name = "rarity"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Miezhiko"]
 repository = "https://github.com/Miezhiko/Rarity"
 readme = "README.md"
@@ -26,7 +26,7 @@ tracing-subscriber = "*"
 serde = "*"
 serde_derive = "*"
 serde_json = "*"
-serde_yaml = "*"
+serde_yaml_bw = "*"
 serde_dhall = "*"
 regex = "*"
 rand = "*"

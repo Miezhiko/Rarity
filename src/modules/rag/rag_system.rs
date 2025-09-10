@@ -50,7 +50,7 @@ impl RagSystem {
     let content = fs::read_to_string(path)
       .with_context(|| format!("Failed to read knowledge base file: {}", path))?;
     
-    let knowledge_base: KnowledgeBase = serde_yaml::from_str(&content)
+    let knowledge_base: KnowledgeBase = serde_yaml_bw::from_str(&content)
       .with_context(|| format!("Failed to parse YAML knowledge base: {}", path))?;
     
     info!("Loaded knowledge base with {} terms from {}", knowledge_base.terms.len(), path);
