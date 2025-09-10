@@ -3,4 +3,6 @@
 *.hi
 *.o
 *.exe
+*.log
+*.pid
 hake
