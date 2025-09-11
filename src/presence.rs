@@ -84,7 +84,7 @@ pub async fn update_bot_status(state: &State) -> Result<(), Box<dyn Error + Send
   };
   
   let activity = MinimalActivity {
-    kind: ActivityType::Custom,
+    kind: ActivityType::Playing,
     name: status_text,
     url: None
   };
