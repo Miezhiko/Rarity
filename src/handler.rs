@@ -150,7 +150,7 @@ pub async fn handle_event(
     Event::Ready(_) => {
       tracing::info!("Shard is ready");
       tokio::spawn(async move {
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(120));
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
         loop {
           interval.tick().await;
           if let Err(e) = presence::update_bot_status(&state).await {

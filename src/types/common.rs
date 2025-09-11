@@ -1,6 +1,13 @@
 use serde::Deserialize;
 
 #[derive(Clone, Deserialize)]
+pub struct NewsInstance {
+  #[serde(rename = "type")]
+  pub instance_type: String,
+  pub url: String
+}
+
+#[derive(Clone, Deserialize)]
 pub struct IOptions {
   pub discord: String,
   pub models: Vec<String>,
@@ -14,5 +21,6 @@ pub struct IOptions {
   pub twitter_channel_id: u64,
   pub title_mod_msg: String,
   pub desc_mod_msg: String,
-  pub test_subscriber: bool
+  pub test_subscriber: bool,
+  pub news_instances: Vec<NewsInstance>
 }

@@ -58,7 +58,42 @@ aliases:
 };
  ```
 
- but main bot config is `conf.dhall` file
+ but main bot config is `conf.dhall` file, here is example
+
+ ```haskell
+let NewsInstance = { type : Text, url : Text }
+
+let Config : Type =
+  { discord             : Text
+  , models              : List Text
+  , bot_name            : Text
+  , system_prompt       : Text
+  , footer_text         : Text
+  , allowed_guilds      : List Natural
+  , restricted_channels : List Natural
+  , owner               : Natural
+  , bot                 : Natural
+  , title_mod_msg       : Text
+  , desc_mod_msg        : Text
+  , twitter_channel_id  : Natural
+  , test_subscriber     : Bool
+  , news_instances      : List NewsInstance
+  }
+
+let config =
+  { discord = "..."
+  , models = [ "mistral-small3.2:latest", "gemma3n:latest" ]
+  , -- ... other fields
+  , news_instances =
+    [ NewsInstance::{ type = "bing", url = "https://www.bing.com/news/search?q=%D0%BA%D0%B2%D0%B0%D0%B4%D1%80%D0%BE%D0%B1%D0%B5%D1%80%D1%8B&format=rss" }
+    , NewsInstance::{ type = "standard", url = "https://www.themoscowtimes.com/rss/news" }
+    , NewsInstance::{ type = "standard", url = "https://lenta.ru/rss/google-newsstand/main" }
+    , NewsInstance::{ type = "standard", url = "https://meduza.io/rss/all" }
+    ]
+  }
+
+in config
+```
 
 # The system automatically determines when to use RAG based on:
 

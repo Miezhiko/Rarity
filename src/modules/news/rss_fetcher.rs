@@ -1,6 +1,7 @@
 use crate::{
   types::state::State,
-  types::rss::*
+  types::rss::*,
+  options
 };
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -11,40 +12,33 @@ pub struct RssFetcher;
 
 impl RssFetcher {
   pub async fn fetch_all_feeds(state: &State) -> Result<Vec<FeedItem>, Box<dyn std::error::Error + Send + Sync>> {
-    let news_instances = vec![
-      ("bing",      "https://www.bing.com/news/search?q=%D0%BA%D0%B2%D0%B0%D0%B4%D1%80%D0%BE%D0%B1%D0%B5%D1%80%D1%8B&format=rss"),
-      ("standard",  "https://www.themoscowtimes.com/rss/news"),
-      ("standard",  "https://lenta.ru/rss/google-newsstand/main"),
-      ("standard",  "https://meduza.io/rss/all")
-    ];
-
     let mut all_items = Vec::new();
     let mut successful_fetches = 0;
 
-    for (feed_type, rss_url) in &news_instances {
-      info!("Attempting to fetch from {} ({})", rss_url, feed_type);
-      match *feed_type {
+    for instance in &options::CONFIG.news_instances {
+      info!("Attempting to fetch from {} ({})", instance.url, instance.instance_type);
+      match instance.instance_type.as_str() {
         "bing" => {
-          match Self::try_fetch_from_bing(state, rss_url).await {
+          match Self::try_fetch_from_bing(state, instance.url.as_str()).await {
             Ok(items) => {
-              info!("Successfully fetched {} items from Bing: {}", items.len(), rss_url);
+              info!("Successfully fetched {} items from Bing: {}", items.len(), instance.url);
               all_items.extend(items);
               successful_fetches += 1;
             }
             Err(e) => {
-              warn!("Failed to fetch from Bing {}: {}", rss_url, e);
+              warn!("Failed to fetch from Bing {}: {}", instance.url, e);
             }
           }
         }
         _ => {
-          match Self::try_fetch_standard(state, rss_url).await {
+          match Self::try_fetch_standard(state, instance.url.as_str()).await {
             Ok(items) => {
-              info!("Successfully fetched {} items from: {}", items.len(), rss_url);
+              info!("Successfully fetched {} items from: {}", items.len(), instance.url);
               all_items.extend(items);
               successful_fetches += 1;
             }
             Err(e) => {
-              warn!("Failed to fetch from {}: {}", rss_url, e);
+              warn!("Failed to fetch from {}: {}", instance.url, e);
             }
           }
         }
