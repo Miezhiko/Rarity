@@ -5,6 +5,7 @@ mod types;
 #[macro_use] mod macros;
 mod modules;
 mod options;
+mod presence;
 mod handler;
 mod commands;
 
@@ -21,6 +22,7 @@ use std::collections::{ HashMap, HashSet };
 use std::time::{ Duration };
 
 use tokio::sync::Mutex;
+
 use smallvec::SmallVec;
 
 use twilight_cache_inmemory::{
@@ -73,6 +75,7 @@ async fn main() -> anyhow::Result<()> {
 
   let state = Arc::new(StateRef {
     http,
+    shard_sender: shard.sender(),
     request_client,
     generation_lock: Arc::new(tokio::sync::Semaphore::new(1)),
     conversation_history: Arc::new(Mutex::new(HashMap::new())),

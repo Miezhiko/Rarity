@@ -10,6 +10,8 @@ use tokio::sync::{ Mutex, Semaphore };
 
 use smallvec::SmallVec;
 
+use twilight_gateway::MessageSender;
+
 type MessageTuple = (Arc<str>, Arc<str>, Arc<str>);
 type GlobalMessageTuple = (Arc<str>, Arc<str>);
 
@@ -25,6 +27,7 @@ pub struct GlobalConversationHistory {
 
 pub struct StateRef {
   pub http: HttpClient,
+  pub shard_sender: MessageSender,
   pub request_client: Reqwest,
   pub generation_lock: Arc<Semaphore>,
   pub conversation_history: Arc<Mutex<HashMap<String, ConversationHistory>>>,

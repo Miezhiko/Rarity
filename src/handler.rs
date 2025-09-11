@@ -2,6 +2,7 @@ use crate::{
   types::state::State,
   commands::{ reply, speak },
   modules::state,
+  presence,
   options
 };
 
@@ -148,6 +149,16 @@ pub async fn handle_event(
     Event::MessageCreate(msg) => handle_message(msg, &state).await,
     Event::Ready(_) => {
       tracing::info!("Shard is ready");
+      tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(120));
+        loop {
+          interval.tick().await;
+          if let Err(e) = presence::update_bot_status(&state).await {
+            tracing::warn!("Failed to update bot status: {}", e);
+          }
+        }
+      });
+      
       Ok(())
     }
     _ => Ok(())
