@@ -82,7 +82,7 @@ let Config : Type =
 
 let config =
   { discord = "..."
-  , models = [ "mistral-small3.2:latest", "gemma3n:latest" ]
+  , models = [ "mistral-small3.2:latest", "gemma3n:latest", "qwen3:8b" ]
   , -- ... other fields
   , news_instances =
     [ NewsInstance::{ type = "bing", url = "https://www.bing.com/news/search?q=%D0%BA%D0%B2%D0%B0%D0%B4%D1%80%D0%BE%D0%B1%D0%B5%D1%80%D1%8B&format=rss" }
