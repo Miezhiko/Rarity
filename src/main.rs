@@ -92,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
     Id::new(options::CONFIG.twitter_channel_id)
   );
 
-  let _rss_handle = rss_subscriber.start(Duration::from_secs(3000));
+  let _rss_handle = rss_subscriber.start(Duration::from_secs(6000));
   tracing::info!("Twitter RSS subscriber has started");
 
   while let Some(item) = shard.next_event(EventTypeFlags::all()).await {
