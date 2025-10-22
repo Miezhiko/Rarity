@@ -36,37 +36,15 @@ fn estimate_tokens(text: &str) -> usize {
   (text.chars().count() + 3) / 4
 }
 
-fn truncate_at_sentence_boundary(text: &str, max_chars: usize) -> String {
-  if text.chars().count() <= max_chars {
-    return text.to_string();
-  }
-  
-  let chars: Vec<char> = text.chars().collect();
-  let mut end_pos = std::cmp::min(max_chars, chars.len());
-  
-  // Try to find a sentence boundary
-  let search_start = end_pos.saturating_sub(200);
-  for i in (search_start..end_pos).rev() {
-    if chars[i] == '.' || chars[i] == '!' || chars[i] == '?' {
-      if i + 1 < chars.len() && chars[i + 1] == ' ' {
-        end_pos = i + 1;
-        break;
-      }
-    }
-  }
-  
-  chars[..end_pos].iter().collect::<String>().trim().to_string() + "..."
-}
-
 fn truncate_at_word_boundary(text: &str, max_chars: usize) -> String {
   if text.chars().count() <= max_chars {
     return text.to_string();
   }
-  
-  let chars: Vec<char> = text.chars().collect();
-  let mut end_pos = std::cmp::min(max_chars, chars.len());
-  
-  // Try to find a word boundary
+
+  let chars: Vec<char>  = text.chars().collect();
+  let max_content_chars = max_chars.saturating_sub(3);
+  let mut end_pos       = std::cmp::min(max_content_chars, chars.len());
+
   let search_start = end_pos.saturating_sub(100);
   for i in (search_start..end_pos).rev() {
     if chars[i] == ' ' || chars[i] == '\n' || chars[i] == '.' {
@@ -74,82 +52,15 @@ fn truncate_at_word_boundary(text: &str, max_chars: usize) -> String {
       break;
     }
   }
-  
+
   chars[..end_pos].iter().collect::<String>() + "..."
 }
 
-fn truncate_news_prompt(prompt: &str, max_chars: usize) -> String {
-  if let Some(news_start) = prompt.find("Новости для объединения:") {
-    let (prefix, news_part) = prompt.split_at(news_start);
-    let task_part = prefix;
-    let news_content = &news_part["Новости для объединения:".len()..];
-    
-    let task_chars = task_part.chars().count() + "Новости для объединения:".chars().count();
-    let available_for_news = max_chars.saturating_sub(task_chars + 100); // Buffer
-    
-    if news_content.chars().count() <= available_for_news {
-      return prompt.to_string();
-    }
-    
-    let truncated_news = truncate_at_sentence_boundary(news_content, available_for_news);
-    
-    format!("{}Новости для объединения:{}", task_part, truncated_news)
-  } else {
-    truncate_at_word_boundary(prompt, max_chars)
-  }
-}
-
-fn truncate_chat_history(prompt: &str, max_chars: usize) -> String {
-  let lines: Vec<&str> = prompt.lines().collect();
-  
-  // Find system prompt and recent messages
-  let mut system_lines = Vec::new();
-  let mut chat_lines = Vec::new();
-  
-  let mut in_chat = false;
-  for line in lines {
-    if line.contains("Рарити:") || line.contains(": ") {
-      in_chat = true;
-    }
-    
-    if in_chat {
-      chat_lines.push(line);
-    } else {
-      system_lines.push(line);
-    }
-  }
-  
-  let system_part = system_lines.join("\n");
-  let system_chars = system_part.chars().count();
-  let available_for_chat = max_chars.saturating_sub(system_chars + 50);
-  
-  let mut result_chat = Vec::new();
-  let mut current_length = 0;
-  
-  for line in chat_lines.iter().rev() {
-    let line_length = line.chars().count() + 1; // +1 for newline
-    if current_length + line_length <= available_for_chat {
-      result_chat.push(*line);
-      current_length += line_length;
-    } else {
-      break;
-    }
-  }
-  
-  result_chat.reverse();
-  
-  if system_part.is_empty() {
-    result_chat.join("\n")
-  } else {
-    format!("{}\n{}", system_part, result_chat.join("\n"))
-  }
-}
-
 fn truncate_prompt_smartly(system_prompt: &str, secondary_prompt: Option<&str>, user_prompt: &str) -> String {
-  let system_tokens = estimate_tokens(system_prompt);
-  let secondary_tokens = secondary_prompt.map(estimate_tokens).unwrap_or(0);
-  let user_tokens = estimate_tokens(user_prompt);
-  let total_tokens = system_tokens + secondary_tokens + user_tokens;
+  let system_tokens     = estimate_tokens(system_prompt);
+  let secondary_tokens  = secondary_prompt.map(estimate_tokens).unwrap_or(0);
+  let user_tokens       = estimate_tokens(user_prompt);
+  let total_tokens      = system_tokens + secondary_tokens + user_tokens;
   
   let available_tokens = MAX_CONTEXT_TOKENS.saturating_sub(RESPONSE_TOKENS);
   
@@ -165,21 +76,8 @@ fn truncate_prompt_smartly(system_prompt: &str, secondary_prompt: Option<&str>, 
   warn!("Prompt too long ({} tokens), truncating user content", total_tokens);
   
   let max_user_tokens = available_tokens.saturating_sub(system_tokens + secondary_tokens);
-  let max_user_chars = max_user_tokens * 4;
-  
-  if user_prompt.chars().count() <= max_user_chars {
-    return full_prompt;
-  }
-  
-  // Smart truncation strategies - only truncate user prompt
-  let truncated_user = if user_prompt.contains("Новости для объединения:") {
-    truncate_news_prompt(user_prompt, max_user_chars)
-  } else if user_prompt.contains(": ") && user_prompt.lines().count() > 5 {
-    truncate_chat_history(user_prompt, max_user_chars)
-  } else {
-    // Simple truncation with word boundary
-    truncate_at_word_boundary(user_prompt, max_user_chars)
-  };
+  let max_user_chars  = max_user_tokens * 4;
+  let truncated_user  = truncate_at_word_boundary(user_prompt, max_user_chars);
   
   info!("Truncated prompt from {} to {} characters", 
         user_prompt.chars().count(), 
