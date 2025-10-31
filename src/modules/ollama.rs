@@ -31,9 +31,12 @@ static XML_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
   Regex::new(r"<[^>]+>").expect("Failed to compile XML tag regex")
 });
 
-// Rough token estimation (4 chars = 1 token for Russian text)
 fn estimate_tokens(text: &str) -> usize {
-  (text.chars().count() + 3) / 4
+  if let Ok(bpe) = tiktoken_rs::cl100k_base() {
+    bpe.encode_with_special_tokens(text).len()
+  } else {
+    (text.chars().count() + 3) / 4
+  }
 }
 
 fn truncate_at_word_boundary(text: &str, max_chars: usize) -> String {
@@ -77,7 +80,7 @@ fn truncate_prompt_smartly(system_prompt: &str, secondary_prompt: Option<&str>, 
   
   let max_user_tokens = available_tokens.saturating_sub(system_tokens + secondary_tokens);
   let max_user_chars  = max_user_tokens * 4;
-  let truncated_user  = truncate_at_word_boundary(user_prompt, max_user_chars);
+  let truncated_user  = truncate_at_word_boundary(&full_prompt, max_user_chars);
   
   info!("Truncated prompt from {} to {} characters", 
         user_prompt.chars().count(), 
