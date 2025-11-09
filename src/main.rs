@@ -22,7 +22,6 @@ use std::collections::{ HashMap, HashSet };
 use std::time::{ Duration };
 
 use tokio::sync::Mutex;
-
 use smallvec::SmallVec;
 
 use twilight_cache_inmemory::{
@@ -45,6 +44,10 @@ use tracing::Level;
 
 #[tokio::main(worker_threads=16)]
 async fn main() -> anyhow::Result<()> {
+  rustls::crypto::ring::default_provider()
+      .install_default()
+      .expect("Failed to install crypto provider");
+
   let subscriber = FmtSubscriber::builder()
     .with_max_level(Level::INFO)
     .finish();

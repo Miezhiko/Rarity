@@ -1,6 +1,6 @@
 [package]
 name = "rarity"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Miezhiko"]
 repository = "https://github.com/Miezhiko/Rarity"
 readme = "README.md"
@@ -34,6 +34,10 @@ smallvec = "*"
 async-recursion = "*"
 feed-rs = "*"
 tiktoken-rs = "*"
+
+[dependencies.rustls]
+version = "*"
+features = ["ring"]
 
 [dependencies.twilight-util]
 git = "https://github.com/twilight-rs/twilight"
