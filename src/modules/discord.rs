@@ -4,9 +4,8 @@ use crate::{
 };
 
 use std::time::{SystemTime, UNIX_EPOCH};
-
 use regex::Regex;
-use tracing::{info, error};
+use tracing::{info, error, warn};
 use twilight_model::id::{Id, marker::{ChannelMarker}};
 use twilight_model::channel::Message;
 use twilight_model::util::Timestamp;
@@ -14,16 +13,38 @@ use twilight_util::builder::embed::{
   EmbedBuilder,
   EmbedFooterBuilder
 };
-
 use anyhow::Context;
 
+// Discord uses UTF-16 code point limits, not character limits!
 pub const DISCORD_EMBED_TITLE_LIMIT: usize        = 256;
 pub const DISCORD_EMBED_DESCRIPTION_LIMIT: usize  = 4096;
 pub const DISCORD_EMBED_FOOTER_LIMIT: usize       = 2048;
 pub const DISCORD_EMBED_TOTAL_LIMIT: usize        = 6000;
-pub const MAX_CHUNK_SIZE: usize                   = 3900;
+pub const MAX_CHUNK_SIZE: usize                   = 3800;  // Safety margin for UTF-16
 pub const TRUNCATION_BUFFER: usize                = 50;
 pub const CONTINUATION_SUFFIX: &str               = "...";
+
+// CRITICAL: Count UTF-16 code points, not characters
+fn count_utf16(text: &str) -> usize {
+  text.encode_utf16().count()
+}
+
+// CRITICAL: Truncate by UTF-16 code points
+fn truncate_utf16(text: &str, max_utf16_len: usize) -> String {
+  let mut utf16_count = 0;
+  let mut result = String::new();
+  
+  for ch in text.chars() {
+    let char_utf16_len = ch.len_utf16();
+    if utf16_count + char_utf16_len > max_utf16_len {
+      break;
+    }
+    result.push(ch);
+    utf16_count += char_utf16_len;
+  }
+  
+  result
+}
 
 pub fn remove_quotes(s: &str) -> String {
   let mut result = s.to_string();
@@ -90,19 +111,24 @@ pub fn safe_truncate(text: &str, max_len: usize) -> String {
     .trim()
     .to_string();
 
-  if normalized.chars().count() <= max_len {
+  // Use UTF-16 length for truncation
+  let utf16_len = count_utf16(&normalized);
+  if utf16_len <= max_len {
     return normalized;
   }
 
-  let truncate_at = max_len.saturating_sub(CONTINUATION_SUFFIX.len());
+  let suffix_utf16_len = count_utf16(CONTINUATION_SUFFIX);
+  let truncate_at = max_len.saturating_sub(suffix_utf16_len);
   if truncate_at == 0 {
     return CONTINUATION_SUFFIX.to_string();
   }
   
-  let mut result: String = normalized.chars().take(truncate_at).collect();
+  let mut result = truncate_utf16(&normalized, truncate_at);
 
+  // Try to break at word boundary
   if let Some(last_space) = result.rfind(' ') {
-    if last_space > truncate_at.saturating_sub(TRUNCATION_BUFFER) {
+    let before_space = &result[..last_space];
+    if count_utf16(before_space) > truncate_at.saturating_sub(TRUNCATION_BUFFER) {
       result.truncate(last_space);
     }
   }
@@ -112,37 +138,36 @@ pub fn safe_truncate(text: &str, max_len: usize) -> String {
 }
 
 pub fn validate_embed_content(title: &str, description: &str, footer: &str) -> Result<(), String> {
-  // Check byte length as well as character count for Discord API compatibility
-  let title_chars = title.chars().count();
-  let title_bytes = title.len();
-  let desc_chars = description.chars().count();
-  let desc_bytes = description.len();
+  let title_utf16 = count_utf16(title);
+  let desc_utf16 = count_utf16(description);
+  let footer_utf16 = count_utf16(footer);
   
-  if title_chars == 0 && desc_chars == 0 {
-    return Err("Both title and description cannot be empty".to_string());
+  let title_has_content = !title.trim().is_empty();
+  let desc_has_content = !description.trim().is_empty();
+  
+  if !title_has_content && !desc_has_content {
+    return Err("Both title and description are empty or whitespace-only".to_string());
   }
   
-  // Check both character and byte limits (Discord can be picky about UTF-8)
-  if title_chars > DISCORD_EMBED_TITLE_LIMIT || title_bytes > DISCORD_EMBED_TITLE_LIMIT * 4 {
-    return Err(format!("Title too long: {} chars, {} bytes (limit: {} chars)", 
-                      title_chars, title_bytes, DISCORD_EMBED_TITLE_LIMIT));
+  if title_utf16 > DISCORD_EMBED_TITLE_LIMIT {
+    return Err(format!("Title too long: {} UTF-16 code points (limit: {})", 
+                      title_utf16, DISCORD_EMBED_TITLE_LIMIT));
   }
   
-  if desc_chars > DISCORD_EMBED_DESCRIPTION_LIMIT || desc_bytes > DISCORD_EMBED_DESCRIPTION_LIMIT * 4 {
-    return Err(format!("Description too long: {} chars, {} bytes (limit: {} chars)", 
-                      desc_chars, desc_bytes, DISCORD_EMBED_DESCRIPTION_LIMIT));
+  if desc_utf16 > DISCORD_EMBED_DESCRIPTION_LIMIT {
+    return Err(format!("Description too long: {} UTF-16 code points (limit: {})", 
+                      desc_utf16, DISCORD_EMBED_DESCRIPTION_LIMIT));
   }
   
-  let footer_chars = footer.chars().count();
-  let footer_bytes = footer.len();
-  if footer_chars > DISCORD_EMBED_FOOTER_LIMIT || footer_bytes > DISCORD_EMBED_FOOTER_LIMIT * 4 {
-    return Err(format!("Footer too long: {} chars, {} bytes (limit: {} chars)", 
-                      footer_chars, footer_bytes, DISCORD_EMBED_FOOTER_LIMIT));
+  if footer_utf16 > DISCORD_EMBED_FOOTER_LIMIT {
+    return Err(format!("Footer too long: {} UTF-16 code points (limit: {})", 
+                      footer_utf16, DISCORD_EMBED_FOOTER_LIMIT));
   }
   
-  let total_length = title_chars + desc_chars + footer_chars;
+  let total_length = title_utf16 + desc_utf16 + footer_utf16;
   if total_length > DISCORD_EMBED_TOTAL_LIMIT {
-    return Err(format!("Total embed content too long: {} > {}", total_length, DISCORD_EMBED_TOTAL_LIMIT));
+    return Err(format!("Total embed content too long: {} > {} UTF-16 code points", 
+                      total_length, DISCORD_EMBED_TOTAL_LIMIT));
   }
   
   Ok(())
@@ -166,18 +191,16 @@ pub fn create_embed_timestamp(timestamp_secs: Option<i64>) -> Timestamp {
     })
 }
 
-// Fixed: Better handling of empty content and proper truncation
 pub fn build_embed(title: &str, description: &str) -> EmbedBuilder {
   let mut sanitized_title = sanitize_discord_text(title);
   let mut sanitized_description = sanitize_discord_text(description);
   let footer_text = format!("{} | v{}", options::CONFIG.footer_text, options::VERSION);
 
-  // Truncate content if it exceeds limits
-  if sanitized_title.chars().count() > DISCORD_EMBED_TITLE_LIMIT {
+  if count_utf16(&sanitized_title) > DISCORD_EMBED_TITLE_LIMIT {
     sanitized_title = safe_truncate(&sanitized_title, DISCORD_EMBED_TITLE_LIMIT);
   }
   
-  if sanitized_description.chars().count() > DISCORD_EMBED_DESCRIPTION_LIMIT {
+  if count_utf16(&sanitized_description) > DISCORD_EMBED_DESCRIPTION_LIMIT {
     sanitized_description = safe_truncate(&sanitized_description, DISCORD_EMBED_DESCRIPTION_LIMIT);
   }
 
@@ -185,12 +208,10 @@ pub fn build_embed(title: &str, description: &str) -> EmbedBuilder {
     .color(0xFF69B4)
     .footer(EmbedFooterBuilder::new(footer_text).build());
 
-  // Only add title if not empty
   if !sanitized_title.is_empty() {
     embed = embed.title(sanitized_title);
   }
   
-  // Only add description if not empty
   if !sanitized_description.is_empty() {
     embed = embed.description(sanitized_description);
   }
@@ -243,18 +264,37 @@ pub async fn send_embed_message(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let mut sanitized_title = sanitize_discord_text(title);
   let mut sanitized_description = sanitize_discord_text(description);
+  
+  let title_utf16 = count_utf16(&sanitized_title);
+  let desc_utf16 = count_utf16(&sanitized_description);
+  
+  info!("After sanitization - Title: {} chars ({} UTF-16), Description: {} chars ({} UTF-16)",
+        sanitized_title.chars().count(),
+        title_utf16,
+        sanitized_description.chars().count(),
+        desc_utf16);
+  
+  if sanitized_title.trim().is_empty() && sanitized_description.trim().is_empty() {
+    error!("Both title and description are empty after sanitization!");
+    return Err("Cannot send embed with no content".into());
+  }
+  
   let footer_text = format!("{} | v{}", options::CONFIG.footer_text, options::VERSION);
 
-  // Pre-truncate content to avoid validation errors
-  if sanitized_title.chars().count() > DISCORD_EMBED_TITLE_LIMIT {
+  // Truncate using UTF-16 counts
+  if title_utf16 > DISCORD_EMBED_TITLE_LIMIT {
+    warn!("Truncating title from {} to {} UTF-16 code points", 
+          title_utf16, DISCORD_EMBED_TITLE_LIMIT);
     sanitized_title = safe_truncate(&sanitized_title, DISCORD_EMBED_TITLE_LIMIT);
   }
   
-  if sanitized_description.chars().count() > DISCORD_EMBED_DESCRIPTION_LIMIT {
+  if desc_utf16 > DISCORD_EMBED_DESCRIPTION_LIMIT {
+    warn!("Truncating description from {} to {} UTF-16 code points", 
+          desc_utf16, DISCORD_EMBED_DESCRIPTION_LIMIT);
     sanitized_description = safe_truncate(&sanitized_description, DISCORD_EMBED_DESCRIPTION_LIMIT);
   }
 
-  // Validate after truncation
+  // Validate
   if let Err(validation_error) =
       validate_embed_content( &sanitized_title
                             , &sanitized_description
@@ -270,14 +310,18 @@ pub async fn send_embed_message(
     .timestamp(embed_timestamp)
     .footer(EmbedFooterBuilder::new(footer_text).build());
 
-  if !sanitized_title.is_empty() {
-    embed = embed.title(sanitized_title);
+  if !sanitized_title.trim().is_empty() {
+    embed = embed.title(sanitized_title.clone());
   }
-  if !sanitized_description.is_empty() {
-    embed = embed.description(sanitized_description);
+  if !sanitized_description.trim().is_empty() {
+    embed = embed.description(sanitized_description.clone());
   }
 
   let built_embed = embed.build();
+
+  info!("Sending embed - title UTF-16: {}, description UTF-16: {}", 
+        count_utf16(&sanitized_title),
+        count_utf16(&sanitized_description));
 
   match state.http
     .create_message(channel_id)
@@ -289,6 +333,9 @@ pub async fn send_embed_message(
       }
       Err(e) => {
         error!("Failed to send embed message: {}", e);
+        error!("Final UTF-16 counts - Title: {}, Description: {}", 
+               count_utf16(&sanitized_title),
+               count_utf16(&sanitized_description));
         Err(e.into())
       }
     }
