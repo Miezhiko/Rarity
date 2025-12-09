@@ -23,11 +23,10 @@ async fn get_ollama_stats(state: &State) -> Result<(f32, f32), Box<dyn Error + S
         
         for model in models {
           if let Some(size_vram) = model["size_vram"].as_u64() {
-            total_mem_gb += size_vram as f32 / 1_073_741_824.0; // Convert bytes to GB
+            total_mem_gb += size_vram as f32 / 1_073_741_824.0;
           }
-          // Ollama API doesn't directly provide CPU usage, so we estimate based on active models
           if model["expires_at"].is_string() {
-            total_cpu += 15.0; // Rough estimate per active model
+            total_cpu += 15.0;
           }
         }
         
@@ -60,8 +59,6 @@ async fn get_ollama_stats(state: &State) -> Result<(f32, f32), Box<dyn Error + S
           if parts.len() >= 2 {
             let cpu = parts[0].parse::<f32>().unwrap_or(0.0);
             let mem_percent = parts[1].parse::<f32>().unwrap_or(0.0);
-            
-            // Estimate memory in GB (assuming 16GB total system RAM as baseline)
             let mem_gb = (mem_percent / 100.0) * 16.0;
             
             return Ok((cpu, mem_gb));
@@ -74,11 +71,36 @@ async fn get_ollama_stats(state: &State) -> Result<(f32, f32), Box<dyn Error + S
   Ok((0.0, 0.0))
 }
 
-pub async fn update_bot_status(state: &State) -> Result<(), Box<dyn Error + Send + Sync>> {
-  let (cpu, mem_gb) = get_ollama_stats(state).await.unwrap_or((0.0, 0.0));
+#[cfg(target_os = "linux")]
+fn get_system_cpu_usage() -> Result<f32, Box<dyn Error + Send + Sync>> {
+  use std::process::Command;
   
-  let status_text = if cpu > 0.0 || mem_gb > 0.0 {
-    format!("🧠: {:.1}% | 🪄: {:.1}GB", cpu, mem_gb)
+  let output = Command::new("sh")
+    .arg("-c")
+    .arg("top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'")
+    .output()?;
+    
+  let cpu_str = String::from_utf8_lossy(&output.stdout);
+  let cpu = cpu_str.trim().parse::<f32>().unwrap_or(0.0);
+  
+  Ok(cpu)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn get_system_cpu_usage() -> Result<f32, Box<dyn Error + Send + Sync>> {
+  Ok(0.0)
+}
+
+pub async fn update_bot_status(state: &State) -> Result<(), Box<dyn Error + Send + Sync>> {
+  let (ollama_cpu, ollama_mem_gb) = get_ollama_stats(state).await.unwrap_or((0.0, 0.0));
+  let system_cpu = get_system_cpu_usage().unwrap_or(0.0);
+  
+  let ollama_active = ollama_cpu > 0.0 || ollama_mem_gb > 0.0;
+  
+  let status_text = if ollama_active {
+    format!("🧠: {:.1}% | 🪄: {:.1}GB", ollama_cpu, ollama_mem_gb)
+  } else if system_cpu > 50.0 {
+    format!("⚡ Квадробика {:.1}%", system_cpu)
   } else {
     "💤 Рарити спит".to_string()
   };
@@ -108,6 +130,11 @@ pub async fn update_bot_status(state: &State) -> Result<(), Box<dyn Error + Send
       Box::<dyn Error + Send + Sync>::from(e.to_string())
     })?;
     
-  tracing::debug!("Updated bot status: CPU {:.1}%, RAM {:.1}GB", cpu, mem_gb);
+  tracing::debug!(
+    "Updated bot status: Ollama CPU {:.1}%, RAM {:.1}GB, System CPU {:.1}%", 
+    ollama_cpu, 
+    ollama_mem_gb,
+    system_cpu
+  );
   Ok(())
 }
