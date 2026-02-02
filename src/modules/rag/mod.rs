@@ -5,9 +5,11 @@ use crate::{
   types::rag::*
 };
 
+use tokio::sync::RwLock;
+
 use once_cell::sync::Lazy;
 
-pub static RAG_OLLAMA: Lazy<RagEnabledOllama> = Lazy::new(|| {
+pub static RAG_OLLAMA: Lazy<RwLock<RagEnabledOllama>> = Lazy::new(|| {
   let config = RagConfig {
     database_path: "knowledge.yml".to_string(),
     max_terms_per_query: 5,
@@ -15,6 +17,8 @@ pub static RAG_OLLAMA: Lazy<RagEnabledOllama> = Lazy::new(|| {
     api_documentation: include_str!("api_docs.txt").to_string()
   };
   
-  RagEnabledOllama::new(config)
-      .expect("Failed to initialize RAG system")
+  RwLock::new(
+    RagEnabledOllama::new(config)
+        .expect("Failed to initialize RAG system")
+  )
 });

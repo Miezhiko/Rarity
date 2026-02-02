@@ -125,9 +125,7 @@ impl RagEnabledOllama {
   pub fn get_rag_statistics(&self) -> std::collections::HashMap<String, usize> {
     self.rag_system.get_statistics()
   }
-}
 
-impl RagEnabledOllama {
   pub fn should_use_rag(&self, prompt: &str) -> bool {
     let prompt_lower = prompt.to_lowercase();
     
@@ -159,5 +157,29 @@ impl RagEnabledOllama {
       debug!("Using standard generation for conversational prompt");
       ollama::generate_ollama_response(prompt, state).await
     }
+  }
+
+  pub fn reload(&mut self) -> Result<()> {
+    self.rag_system.reload_knowledge_base()
+  }
+
+  pub fn get_stats(&self) -> String {
+    let stats = self.rag_system.get_statistics();
+    let labels = [
+      ("total_terms", "Total Terms"),
+      ("total_categories", "Total Categories"),
+      ("total_aliases", "Total Aliases"),
+      ("terms_with_descriptions", "Terms with Descriptions"),
+      ("terms_with_tags", "Terms with Tags")
+    ];
+
+    let mut output = String::from("📊 RAG Statistics:\n");    
+    for (key, label) in &labels {
+      if let Some(value) = stats.get(*key) {
+        output.push_str(&format!("• {}: {}\n", label, value));
+      }
+    }
+
+    output
   }
 }

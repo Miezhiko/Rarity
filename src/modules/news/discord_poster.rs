@@ -19,6 +19,8 @@ impl DiscordPoster {
     channel_id: Id<ChannelMarker>, 
     items: &[FeedItem]
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let read_ollama = rag::RAG_OLLAMA.read().await;
+
     let valid_items: Vec<&FeedItem> = items
       .iter()
       .filter(|item| !item.title.trim().is_empty() && !item.description.trim().is_empty())
@@ -59,9 +61,9 @@ impl DiscordPoster {
                                                        , state ).await?;
 
       let rarity_response_desc =
-        rag::RAG_OLLAMA.generate_with_secondary_and_rag( &combined_descriptions
-                                                       , &options::CONFIG.desc_mod_msg
-                                                       , state ).await?;
+        read_ollama.generate_with_secondary_and_rag( &combined_descriptions
+                                                   , &options::CONFIG.desc_mod_msg
+                                                   , state ).await?;
 
       let mut title_no_q = sanitize_discord_text(&remove_quotes(&rarity_response_title));
       let sanitized_description = sanitize_discord_text(&rarity_response_desc);

@@ -1,6 +1,6 @@
 use crate::{
   types::state::State,
-  commands::{ reply, speak },
+  commands::{ reply, speak, knowlage },
   modules::state,
   presence,
   options
@@ -103,6 +103,8 @@ async fn handle_message(
         if first {
           match rtext.as_str() {
             "help"     => spawn(help(msg.0, Arc::clone(state))),
+            "knowlage" => spawn(knowlage::stats(msg.0, Arc::clone(state))),
+            "refresh"  => spawn(knowlage::refresh(msg.0, Arc::clone(state))),
             _cmd       => spawn(reply::reply(msg.0, rtext, author_name, Arc::clone(state)))
           }
         } else {

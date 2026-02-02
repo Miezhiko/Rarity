@@ -283,16 +283,12 @@ impl RagSystem {
     context
   }
 
-  // TODO
-  #[allow(dead_code)]
   pub fn reload_knowledge_base(&mut self) -> Result<()> {
     self.knowledge_base = Self::load_knowledge_base(&self.config.database_path)?;
     info!("Knowledge base reloaded");
     Ok(())
   }
 
-  // TODO
-  #[allow(dead_code)]
   pub fn get_statistics(&self) -> HashMap<String, usize> {
     let mut stats = HashMap::new();
     stats.insert("total_terms".to_string(), self.knowledge_base.terms.len());

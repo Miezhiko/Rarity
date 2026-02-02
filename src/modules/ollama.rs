@@ -273,6 +273,8 @@ pub async fn generate_ollama_with_history(
     history: &ConversationHistory,
     state: &State,
 ) -> Result<String> {
+  let read_ollama = rag::RAG_OLLAMA.read().await;
+
   let messages: Vec<(String, String)> = history.messages.iter().flat_map(|(msg_author, user_msg, bot_response)| {
     [
       (msg_author.to_string(), user_msg.to_string()),
@@ -281,7 +283,7 @@ pub async fn generate_ollama_with_history(
   }).collect();
   
   let chat_history = build_chat_history(messages.into_iter(), author, input);
-  rag::RAG_OLLAMA.generate_smart(&chat_history, state).await
+  read_ollama.generate_smart(&chat_history, state).await
 }
 
 pub async fn generate_ollama_with_chat(
@@ -290,11 +292,13 @@ pub async fn generate_ollama_with_chat(
     chat: &GlobalConversationHistory,
     state: &State,
 ) -> Result<String> {
+  let read_ollama = rag::RAG_OLLAMA.read().await;
+
   let messages: Vec<(String, String)> =
     chat.messages.iter()
                  .map(|(author, message)| (author.to_string(), message.to_string()))
                  .collect();
 
   let chat_history = build_chat_history(messages.into_iter(), author, input);
-  rag::RAG_OLLAMA.generate_smart(&chat_history, state).await
+  read_ollama.generate_smart(&chat_history, state).await
 }
