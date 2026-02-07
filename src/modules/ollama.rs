@@ -12,7 +12,7 @@ use std::time::Duration;
 use std::borrow::Cow;
 
 use tokio::time::timeout;
-use rand::Rng;
+use rand::RngExt;
 
 use tracing::{error, info, warn};
 use regex::Regex;
