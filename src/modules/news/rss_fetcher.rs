@@ -58,6 +58,7 @@ impl RssFetcher {
       .get(rss_url)
       .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
       .header("Accept", "application/rss+xml, application/xml, text/xml")
+      .header("Accept-Encoding", "identity")
       .timeout(Duration::from_secs(3))
       .send()
       .await?;
@@ -65,8 +66,52 @@ impl RssFetcher {
     if !response.status().is_success() {
       return Err(format!("HTTP {}", response.status()).into());
     }
-    
-    let content = response.text().await?;
+
+    // cound cause decoding problem, Rarity 0.6.6 fixes this
+    // let content = response.text().await?;
+    // get content as plain bytes instead and manually decode
+    let bytes = response.bytes().await?;
+
+    // Extract encoding from XML declaration if present
+    let declared_encoding = if bytes.starts_with(b"<?xml") {
+      let header = String::from_utf8_lossy(&bytes[..bytes.len().min(200)]);
+      header
+        .split("encoding=")
+        .nth(1)
+        .and_then(|s| s.trim_start_matches(|c| c == '"' || c == '\'').split(|c| c == '"' || c == '\'').next())
+        .map(|s| s.to_ascii_lowercase())
+    } else {
+      None
+    };
+
+    let content = match declared_encoding.as_deref() {
+      Some("windows-1251") | Some("cp1251") => {
+        let (decoded, _, had_errors) = encoding_rs::WINDOWS_1251.decode(&bytes);
+        if had_errors {
+          warn!("Encoding errors while decoding feed as Windows-1251");
+        }
+        decoded.into_owned()
+      }
+      Some("iso-8859-1") | Some("latin-1") => {
+        let (decoded, _, had_errors) = encoding_rs::WINDOWS_1251.decode(&bytes);
+        if had_errors {
+          warn!("Encoding errors while decoding feed as ISO-8859-1");
+        }
+        decoded.into_owned()
+      }
+      _ => {
+        // Fall back to UTF-8, then Windows-1251 if that fails
+        match String::from_utf8(bytes.to_vec()) {
+          Ok(s) => s,
+          Err(_) => {
+            warn!("UTF-8 decoding failed, falling back to Windows-1251");
+            let (decoded, _, _) = encoding_rs::WINDOWS_1251.decode(&bytes);
+            decoded.into_owned()
+          }
+        }
+      }
+    };
+
     let mut items = Vec::new();
 
     match parser::parse(content.as_bytes()) {

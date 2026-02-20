@@ -1,6 +1,6 @@
 [package]
 name = "rarity"
-version = "0.6.5"
+version = "0.6.6"
 authors = ["Miezhiko"]
 repository = "https://github.com/Miezhiko/Rarity"
 readme = "README.md"
@@ -34,6 +34,7 @@ smallvec = "*"
 async-recursion = "*"
 feed-rs = "*"
 tiktoken-rs = "*"
+encoding_rs = "*"
 
 [dependencies.rustls]
 version = "*"
@@ -46,7 +47,7 @@ features = ["builder"]
 
 [dependencies.reqwest]
 version = "*"
-features = ["json", "blocking"]
+features = ["json", "blocking", "gzip", "brotli", "deflate"]
 
 [dependencies.tokio]
 default-features = false
