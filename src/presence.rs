@@ -43,31 +43,31 @@ async fn get_ollama_stats(state: &State) -> Result<(f32, f32), Box<dyn Error + S
       .arg("-f")
       .arg("ollama")
       .output();
-      
+
     if let Ok(output) = output {
       if !output.stdout.is_empty() {
         let pid_str = String::from_utf8_lossy(&output.stdout);
         let pid = pid_str.trim();
         let stats_output = Command::new("ps")
-          .args(&["-p", pid, "-o", "pcpu,pmem", "--no-headers"])
+          .args(["-p", pid, "-o", "pcpu,pmem", "--no-headers"])
           .output();
-          
+
         if let Ok(stats) = stats_output {
           let stats_str = String::from_utf8_lossy(&stats.stdout);
-          let parts: Vec<&str> = stats_str.trim().split_whitespace().collect();
-          
+          let parts: Vec<&str> = stats_str.split_whitespace().collect();
+
           if parts.len() >= 2 {
             let cpu = parts[0].parse::<f32>().unwrap_or(0.0);
             let mem_percent = parts[1].parse::<f32>().unwrap_or(0.0);
             let mem_gb = (mem_percent / 100.0) * 16.0;
-            
+
             return Ok((cpu, mem_gb));
           }
         }
       }
     }
   }
-  
+
   Ok((0.0, 0.0))
 }
 

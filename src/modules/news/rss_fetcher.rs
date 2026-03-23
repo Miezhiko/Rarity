@@ -78,7 +78,8 @@ impl RssFetcher {
       header
         .split("encoding=")
         .nth(1)
-        .and_then(|s| s.trim_start_matches(|c| c == '"' || c == '\'').split(|c| c == '"' || c == '\'').next())
+        .and_then(|s| s.trim_start_matches(['"', '\''])
+                       .split(['"', '\'']).next())
         .map(|s| s.to_ascii_lowercase())
     } else {
       None

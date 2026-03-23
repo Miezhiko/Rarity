@@ -63,8 +63,8 @@ impl RssSubscriber {
             }
             
             // Sort by timestamp descending
-            recent_items.sort_by(|a, b| b.published_timestamp.cmp(&a.published_timestamp));
-            
+            recent_items.sort_by_key(|b| std::cmp::Reverse(b.published_timestamp));
+
             // Take 4 most recent items and add one Bing item if available
             let mut selected_items = recent_items.into_iter().take(4).collect::<Vec<_>>();
             if let Some(bing) = bing_item {

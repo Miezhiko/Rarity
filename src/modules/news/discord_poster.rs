@@ -54,7 +54,7 @@ impl DiscordPoster {
       }
     };
 
-    let result = (|| async {
+    let gen_prompt = || async {
       let rarity_response_title =
         ollama::generate_ollama_response_with_secondary( &combined_titles
                                                        , &options::CONFIG.title_mod_msg
@@ -112,7 +112,9 @@ impl DiscordPoster {
       info!("Posted combined news to Discord with {} items", valid_items.len());
       
       Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-    })().await;
+    };
+
+    let result = gen_prompt().await;
 
     drop(generation_permit);
     result

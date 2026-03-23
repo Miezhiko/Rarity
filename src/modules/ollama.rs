@@ -35,7 +35,7 @@ fn estimate_tokens(text: &str) -> usize {
   if let Ok(bpe) = tiktoken_rs::cl100k_base() {
     bpe.encode_with_special_tokens(text).len()
   } else {
-    (text.chars().count() + 3) / 4
+    (text.chars().count() + 3).div_ceil(4)
   }
 }
 
