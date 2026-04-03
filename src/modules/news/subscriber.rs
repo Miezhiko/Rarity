@@ -143,6 +143,7 @@ impl RssSubscriber {
     })
   }
 
+  #[allow(dead_code)]
   pub fn stop(&self) {
     let mut running_guard = self.running.lock().unwrap();
     *running_guard = false;

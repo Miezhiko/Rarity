@@ -15,11 +15,7 @@ use std::time::Duration;
 
 const IMAGE_GENERATION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
-/// Available image generation models (all under 50GB)
-/// Z-Image-Turbo: ~6GB, fast generation, good quality
-/// FLUX.2 Klein (4B): ~8GB, higher quality, slower
-/// FLUX.2 Klein (9B): ~18GB, best quality, slowest
-const DEFAULT_IMAGE_MODEL: &str = "x/z-image-turbo";
+const DEFAULT_IMAGE_MODEL: &str = "llama3.2-vision:11b";
 const DEFAULT_WIDTH: u32 = 1024;
 const DEFAULT_HEIGHT: u32 = 768;
 

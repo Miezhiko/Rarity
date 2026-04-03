@@ -283,7 +283,7 @@ pub async fn send_embed_message(
     return Err("Cannot send embed with no content".into());
   }
   
-  let footer_text = format!("{} | v{}", options::CONFIG.footer_text, options::VERSION);
+  let footer_text = format!("{} 💎 v{}", options::CONFIG.footer_text, options::VERSION);
 
   // Truncate using UTF-16 counts
   if title_utf16 > DISCORD_EMBED_TITLE_LIMIT {

@@ -98,19 +98,26 @@ async fn main() -> anyhow::Result<()> {
   let _rss_handle = rss_subscriber.start(Duration::from_secs(6000));
   tracing::info!("Twitter RSS subscriber has started");
 
-  while let Some(item) = shard.next_event(EventTypeFlags::all()).await {
-    let Ok(event) = item else {
-      tracing::warn!(source = ?item.unwrap_err(), "error receiving event");
-      continue;
-    };
+  loop {
+    tracing::info!("Connecting to Discord gateway...");
 
-    cache.update(&event);
-    tokio::spawn(handle_event(event, Arc::clone(&state)));
+    while let Some(item) = shard.next_event(EventTypeFlags::all()).await {
+      let Ok(event) = item else {
+        tracing::warn!(source = ?item.unwrap_err(), "error receiving event");
+        continue;
+      };
+
+      cache.update(&event);
+      tokio::spawn(handle_event(event, Arc::clone(&state)));
+    }
+
+    tracing::warn!("Discord gateway disconnected, reconnecting in 5 seconds...");
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    shard = Shard::new(
+      ShardId::ONE,
+      options::CONFIG.discord.clone(),
+      Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT,
+    );
   }
-
-  rss_subscriber.stop();
-
-  tracing::error!("Event loop terminated unexpectedly");
-
-  Ok(())
 }
