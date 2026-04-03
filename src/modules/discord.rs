@@ -192,6 +192,10 @@ pub fn create_embed_timestamp(timestamp_secs: Option<i64>) -> Timestamp {
 }
 
 pub fn build_embed(title: &str, description: &str) -> EmbedBuilder {
+  build_embed_with_color(title, description, 0xFF69B4)
+}
+
+pub fn build_embed_with_color(title: &str, description: &str, color: u32) -> EmbedBuilder {
   let mut sanitized_title = sanitize_discord_text(title);
   let mut sanitized_description = sanitize_discord_text(description);
   let footer_text = format!("{} | v{}", options::CONFIG.footer_text, options::VERSION);
@@ -199,23 +203,23 @@ pub fn build_embed(title: &str, description: &str) -> EmbedBuilder {
   if count_utf16(&sanitized_title) > DISCORD_EMBED_TITLE_LIMIT {
     sanitized_title = safe_truncate(&sanitized_title, DISCORD_EMBED_TITLE_LIMIT);
   }
-  
+
   if count_utf16(&sanitized_description) > DISCORD_EMBED_DESCRIPTION_LIMIT {
     sanitized_description = safe_truncate(&sanitized_description, DISCORD_EMBED_DESCRIPTION_LIMIT);
   }
 
   let mut embed = EmbedBuilder::new()
-    .color(0xFF69B4)
+    .color(color)
     .footer(EmbedFooterBuilder::new(footer_text).build());
 
   if !sanitized_title.is_empty() {
     embed = embed.title(sanitized_title);
   }
-  
+
   if !sanitized_description.is_empty() {
     embed = embed.description(sanitized_description);
   }
-  
+
   embed
 }
 

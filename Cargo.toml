@@ -1,6 +1,6 @@
 [package]
 name = "rarity"
-version = "0.6.6"
+version = "0.7.0"
 authors = ["Miezhiko"]
 repository = "https://github.com/Miezhiko/Rarity"
 readme = "README.md"
@@ -35,6 +35,7 @@ async-recursion = "*"
 feed-rs = "*"
 tiktoken-rs = "*"
 encoding_rs = "*"
+base64 = "*"
 
 [dependencies.rustls]
 version = "*"

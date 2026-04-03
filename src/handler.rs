@@ -1,6 +1,6 @@
 use crate::{
   types::state::State,
-  commands::{ reply, speak, knowlage },
+  commands::{ reply, speak, knowlage, imagine },
   modules::state,
   presence,
   options
@@ -80,6 +80,24 @@ async fn handle_message(
 
   match msg.content.split_whitespace().next() {
     Some("~help")     => spawn(help(msg.0, Arc::clone(state))),
+    Some("~imagine")  => {
+      let prompt = msg.content.strip_prefix("~imagine ")
+        .map(String::from)
+        .unwrap_or_default();
+      if prompt.is_empty() {
+        let state_clone = Arc::clone(state);
+        spawn(async move {
+          state_clone.http
+            .create_message(msg.channel_id)
+            .reply(msg.id)
+            .content("Please provide a prompt for image generation! Usage: `~imagine <prompt>` or `~imagine 1024x768 <prompt>`")
+            .await?;
+          Ok(())
+        });
+      } else {
+        spawn(imagine::imagine(msg.0, prompt, Arc::clone(state)));
+      }
+    }
     Some(_cmd)        => {
       let author_name = match msg.guild_id {
         Some(guild_id) => {
