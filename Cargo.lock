@@ -136,9 +136,9 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.16.3"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ec6fb3fe69024a75fa7e1bfb48aa6cf59706a101658ea01bfd33b2b248a038f"
+checksum = "5ec2f1fc3ec205783a5da9a7e6c1509cc69dedf09a1949e412c1e18469326d00"
 dependencies = [
  "aws-lc-sys",
  "zeroize",
@@ -146,9 +146,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.40.0"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f50037ee5e1e41e7b8f9d161680a725bd1626cb6f8c7e901f91f942850852fe7"
+checksum = "1a2f9779ce85b93ab6170dd940ad0169b5766ff848247aff13bb788b832fe3f4"
 dependencies = [
  "cc",
  "cmake",
@@ -417,9 +417,9 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "6.1.0"
+version = "6.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
+checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",
@@ -1455,9 +1455,9 @@ dependencies = [
 
 [[package]]
 name = "num-conv"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6673768db2d862beb9b39a78fdcb1a69439615d5794a1be50caa9bc92c81967"
+checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
 
 [[package]]
 name = "num-traits"
@@ -1476,9 +1476,9 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "openssl"
-version = "0.10.79"
+version = "0.10.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf0b434746ee2832f4f0baf10137e1cabb18cbe6912c69e2e33263c45250f542"
+checksum = "a45fa2aa886c42762255da344f0a0d313e254066c46aad76f300c3d3da62d967"
 dependencies = [
  "bitflags 2.11.1",
  "cfg-if",
@@ -1507,9 +1507,9 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.115"
+version = "0.9.116"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "158fe5b292746440aa6e7a7e690e55aeb72d41505e2804c23c6973ad0e9c9781"
+checksum = "f28a22dc7140cda5f096e5e7724a6962ca81a7f8bfd2979f9b18c11af56318c4"
 dependencies = [
  "cc",
  "libc",
@@ -2723,9 +2723,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.10"
+version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68d6fdd9f81c2819c9a8b0e0cd91660e7746a8e6ea2ba7c6b2b057985f6bcb51"
+checksum = "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
 dependencies = [
  "async-compression",
  "bitflags 2.11.1",
@@ -2822,7 +2822,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 [[package]]
 name = "twilight-cache-inmemory"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#1d7ad7d9dacf8feb001545b473196a64df7a7dc6"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#268052ff055c8ba1db91cbd12637e2daa045e331"
 dependencies = [
  "bitflags 2.11.1",
  "dashmap",
@@ -2833,7 +2833,7 @@ dependencies = [
 [[package]]
 name = "twilight-gateway"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#1d7ad7d9dacf8feb001545b473196a64df7a7dc6"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#268052ff055c8ba1db91cbd12637e2daa045e331"
 dependencies = [
  "bitflags 2.11.1",
  "fastrand",
@@ -2853,7 +2853,7 @@ dependencies = [
 [[package]]
 name = "twilight-gateway-queue"
 version = "0.17.0"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#1d7ad7d9dacf8feb001545b473196a64df7a7dc6"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#268052ff055c8ba1db91cbd12637e2daa045e331"
 dependencies = [
  "tokio",
  "tracing",
@@ -2862,7 +2862,7 @@ dependencies = [
 [[package]]
 name = "twilight-http"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#1d7ad7d9dacf8feb001545b473196a64df7a7dc6"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#268052ff055c8ba1db91cbd12637e2daa045e331"
 dependencies = [
  "brotli-decompressor",
  "fastrand",
@@ -2885,7 +2885,7 @@ dependencies = [
 [[package]]
 name = "twilight-http-ratelimiting"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#1d7ad7d9dacf8feb001545b473196a64df7a7dc6"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#268052ff055c8ba1db91cbd12637e2daa045e331"
 dependencies = [
  "hashbrown 0.16.1",
  "tokio",
@@ -2896,7 +2896,7 @@ dependencies = [
 [[package]]
 name = "twilight-model"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#1d7ad7d9dacf8feb001545b473196a64df7a7dc6"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#268052ff055c8ba1db91cbd12637e2daa045e331"
 dependencies = [
  "bitflags 2.11.1",
  "serde",
@@ -2908,7 +2908,7 @@ dependencies = [
 [[package]]
 name = "twilight-util"
 version = "0.17.0"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#1d7ad7d9dacf8feb001545b473196a64df7a7dc6"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#268052ff055c8ba1db91cbd12637e2daa045e331"
 dependencies = [
  "twilight-model",
  "twilight-validate",
@@ -2917,7 +2917,7 @@ dependencies = [
 [[package]]
 name = "twilight-validate"
 version = "0.17.0"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#1d7ad7d9dacf8feb001545b473196a64df7a7dc6"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#268052ff055c8ba1db91cbd12637e2daa045e331"
 dependencies = [
  "twilight-model",
 ]
@@ -3707,9 +3707,9 @@ dependencies = [
 
 [[package]]
 name = "zerofrom"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69faa1f2a1ea75661980b013019ed6687ed0e83d069bc1114e2cc74c6c04c4df"
+checksum = "0ec05a11813ea801ff6d75110ad09cd0824ddba17dfe17128ea0d5f68e6c5272"
 dependencies = [
  "zerofrom-derive",
 ]
