@@ -10,14 +10,13 @@ use serde_json::{json, Value};
 use std::process::Command;
 use std::time::Duration;
 use std::borrow::Cow;
+use std::sync::LazyLock;
 
 use tokio::time::timeout;
-use rand::RngExt;
+use rand::Rng;
 
 use tracing::{error, info, warn};
 use regex::Regex;
-
-use once_cell::sync::Lazy;
 
 use async_recursion::async_recursion;
 
@@ -27,7 +26,7 @@ const RESTART_DELAY: Duration       = Duration::from_secs(10);
 const MAX_CONTEXT_TOKENS: usize     = 4096;  // Conservative estimate for mistral-small3.2
 const RESPONSE_TOKENS: usize        = 1000;  // Reserve tokens for response
 
-static XML_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
+static XML_TAG_REGEX: LazyLock<Regex> = LazyLock::new(|| {
   Regex::new(r"<[^>]+>").expect("Failed to compile XML tag regex")
 });
 

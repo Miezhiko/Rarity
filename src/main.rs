@@ -2,7 +2,6 @@
 #[macro_use] extern crate anyhow;
 
 mod types;
-#[macro_use] mod macros;
 mod modules;
 mod options;
 mod presence;

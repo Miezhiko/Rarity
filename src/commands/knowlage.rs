@@ -13,7 +13,7 @@ pub async fn stats(msg: Message, state: State) -> anyhow::Result<()> {
     msg.channel_id,
     msg.author.name
   );
-  let read_ollama = rag::RAG_OLLAMA.write().await;
+  let read_ollama = rag::RAG_OLLAMA.read().await;
   let str_stats = read_ollama.get_stats();
   state
     .http

@@ -1,6 +1,6 @@
 [package]
 name = "rarity"
-version = "0.7.1"
+version = "0.8.0"
 authors = ["Miezhiko"]
 repository = "https://github.com/Miezhiko/Rarity"
 readme = "README.md"
@@ -8,7 +8,7 @@ keywords = ["discord", "bot"]
 edition = "2021"
 description = "Rarity discord bot"
 license = "QUADROBER"
-rust-version = "1.76.0"
+rust-version = "1.80.0"
 
 [features]
 default = []
@@ -20,7 +20,6 @@ twilight-cache-inmemory = { git = "https://github.com/twilight-rs/twilight", bra
 twilight-model          = { git = "https://github.com/twilight-rs/twilight", branch = "main" }
 
 anyhow = "*"
-once_cell = "*"
 tracing = "*"
 tracing-subscriber = "*"
 serde = "*"

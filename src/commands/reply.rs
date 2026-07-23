@@ -37,15 +37,14 @@ pub async fn reply(
   };
 
   if msg.channel_id == options::CONFIG.twitter_channel_id {
-    // TODO:
-    #[allow(static_mut_refs)]
-    unsafe {
-      history.messages.push((
-        author.clone().into(),
-        "Рарити, расскажи новости".into(),
-        options::GLOBAL.last_news.clone().into()
-      ));
-    }
+    let last_news = options::GLOBAL.read()
+      .expect("GLOBAL lock poisoned")
+      .last_news.clone();
+    history.messages.push((
+      author.clone().into(),
+      "Рарити, расскажи новости".into(),
+      last_news.into()
+    ));
   }
 
   let response = ollama::generate_ollama_with_history(&text, &author, &history, &state)

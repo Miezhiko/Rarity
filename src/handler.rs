@@ -21,9 +21,9 @@ use twilight_model::{
 
 use twilight_http::request::channel::reaction::RequestReactionType;
 
-use once_cell::sync::OnceCell;
+use std::sync::LazyLock;
 
-static BOT_STRING: OnceCell<&'static str> = OnceCell::new();
+static BOT_STRING: LazyLock<String> = LazyLock::new(|| format!("<@{}>", options::CONFIG.bot));
 
 static HEART: &str = "❤️";
 
@@ -50,12 +50,8 @@ async fn help(msg: Message, state: State) -> anyhow::Result<()> {
   Ok(())
 }
 
-fn get_bot_string() -> &'static str {
-  BOT_STRING.get_or_init(|| Box::leak(format!("<@{}>", options::CONFIG.bot).into_boxed_str()))
-}
-
 fn contains_mention(text: &str) -> Option<(String, bool)> {
-  let bot_str = get_bot_string();
+  let bot_str = BOT_STRING.as_str();
   if let Some(pos) = text.find(bot_str) {
     let clean_text = text.replace(bot_str, "")
                          .trim().to_string();

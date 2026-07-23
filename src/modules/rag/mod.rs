@@ -5,11 +5,10 @@ use crate::{
   types::rag::*
 };
 
+use std::sync::LazyLock;
 use tokio::sync::RwLock;
 
-use once_cell::sync::Lazy;
-
-pub static RAG_OLLAMA: Lazy<RwLock<RagEnabledOllama>> = Lazy::new(|| {
+pub static RAG_OLLAMA: LazyLock<RwLock<RagEnabledOllama>> = LazyLock::new(|| {
   let config = RagConfig {
     database_path: "knowledge.yml".to_string(),
     max_terms_per_query: 5,

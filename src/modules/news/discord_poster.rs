@@ -105,9 +105,9 @@ impl DiscordPoster {
         }
       }
       
-      unsafe {
-        options::GLOBAL.last_news = combined_descriptions;
-      }
+      options::GLOBAL.write()
+        .expect("GLOBAL lock poisoned")
+        .last_news = combined_descriptions;
 
       info!("Posted combined news to Discord with {} items", valid_items.len());
       

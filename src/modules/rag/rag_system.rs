@@ -7,11 +7,11 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::LazyLock;
 use tracing::{debug, info, warn};
 use regex::Regex;
-use once_cell::sync::Lazy;
 
-static RAG_OPERATION_REGEX: Lazy<Regex> = Lazy::new(|| {
+static RAG_OPERATION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
   Regex::new(r#"(?i)(find_term|find_category|find_tag|search_terms|get_related)\s*\(\s*["']([^"']+)["']\s*\)"#)
     .expect("Failed to compile RAG operation regex")
 });

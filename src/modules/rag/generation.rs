@@ -25,7 +25,7 @@ impl RagEnabledOllama {
     let api_docs = self.rag_system.get_api_documentation();
     let initial_prompt = format!(
       "{}\n\nAPI DOCUMENTATION:\n{}\n\nUSER REQUEST:\n{}",
-      &options::CONFIG.system_prompt,
+      options::CONFIG.system_prompt,
       api_docs,
       prompt
     );
@@ -51,7 +51,7 @@ impl RagEnabledOllama {
 
     let enhanced_prompt = format!(
       "{}\n\n{}\n\nBased on the above information, please provide a comprehensive answer to: {}",
-      &options::CONFIG.system_prompt,
+      options::CONFIG.system_prompt,
       retrieved_context,
       prompt
     );

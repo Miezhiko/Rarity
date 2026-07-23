@@ -1,7 +1,8 @@
 use crate::{
   types::state::State,
   types::rss::*,
-  options
+  options,
+  modules::discord::sanitize_discord_text
 };
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -123,7 +124,7 @@ impl RssFetcher {
             .unwrap_or(0);
           
           let title = entry.title
-            .map(|t| Self::sanitize_discord_text(&t.content))
+            .map(|t| sanitize_discord_text(&t.content))
             .unwrap_or_else(|| "No title".to_string());
           
           let link = entry.links.first()
@@ -133,7 +134,7 @@ impl RssFetcher {
           let description = entry.content
             .and_then(|c| c.body)
             .or_else(|| entry.summary.map(|s| s.content))
-            .map(|d| Self::sanitize_discord_text(&d))
+            .map(|d| sanitize_discord_text(&d))
             .unwrap_or_else(|| "No description".to_string());
 
           let item = FeedItem {
@@ -183,7 +184,7 @@ impl RssFetcher {
             });
           
           let title = entry.title
-            .map(|t| Self::sanitize_discord_text(&t.content))
+            .map(|t| sanitize_discord_text(&t.content))
             .unwrap_or_else(|| "No title".to_string());
           
           let link = entry.links.iter()
@@ -192,8 +193,8 @@ impl RssFetcher {
             .unwrap_or_else(|| "No link".to_string());
           
           let description = entry.summary
-            .map(|s| Self::sanitize_discord_text(&s.content))
-            .or_else(|| entry.content.and_then(|c| c.body.map(|b| Self::sanitize_discord_text(&b))))
+            .map(|s| sanitize_discord_text(&s.content))
+            .or_else(|| entry.content.and_then(|c| c.body.map(|b| sanitize_discord_text(&b))))
             .unwrap_or_else(|| "No description".to_string());
 
           let item = FeedItem {
@@ -212,22 +213,5 @@ impl RssFetcher {
     }
 
     Ok(items)
-  }
-
-  fn sanitize_discord_text(text: &str) -> String {
-    text
-      .chars()
-      .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
-      .filter(|c| {
-        match *c as u32 {
-          0x200B..=0x200F |  // Zero-width space, zero-width non-joiner, etc.
-          0x202A..=0x202E |  // Directional formatting
-          0xFEFF => false,   // Byte Order Mark
-          _ => true,
-        }
-      })
-      .collect::<String>()
-      .trim()
-      .to_string()
   }
 }
