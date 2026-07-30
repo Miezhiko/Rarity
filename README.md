@@ -116,4 +116,22 @@ in config
  - Network timeouts (falls back to non-RAG responses)
  - Token limit overruns (smart truncation)
 
+# Running behind a VPN / proxy
+
+All of this is opt-in via environment variables; with none of them set the
+bot behaves exactly as before.
+
+ - `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` (+ `NO_PROXY`): routes outbound
+   Ollama and RSS requests through a proxy, e.g. to safely reach the outside
+   world from a VPN. The local Ollama API always stays reachable directly,
+   even if `NO_PROXY` doesn't already exclude it.
+ - `DISCORD_HTTP_PROXY_URL` (+ `DISCORD_HTTP_PROXY_USE_HTTP`): points the
+   Discord REST client at a self-hosted mirror such as
+   [twilight-rs/http-proxy](https://github.com/twilight-rs/http-proxy),
+   reachable from inside a private/VPN network without direct internet
+   access to discord.com.
+ - `DISCORD_GATEWAY_PROXY_URL`: same idea for the gateway websocket
+   connection, e.g. pointing at
+   [twilight-rs/gateway-proxy](https://github.com/twilight-rs/gateway-proxy).
+
 *respect the QUADROBER license*
