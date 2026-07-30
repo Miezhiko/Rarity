@@ -36,6 +36,30 @@ pub fn build_request_client(proxy_url: Option<&str>, existing_no_proxy: &str) ->
   builder.build()
 }
 
+/// Resolves the Discord REST API proxy from already-read environment values.
+///
+/// This targets `twilight-http`'s own proxy support, i.e. a self-hosted
+/// mirror such as <https://github.com/twilight-rs/http-proxy> that the bot
+/// can reach from inside a private/VPN network without needing direct
+/// internet access to discord.com. `use_http` accepts "1"/"true".
+fn discord_http_proxy_from(url: Option<String>, use_http_raw: Option<String>) -> Option<(String, bool)> {
+  let url = url?;
+  let use_http = use_http_raw
+    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    .unwrap_or(false);
+  Some((url, use_http))
+}
+
+/// Reads the optional `DISCORD_HTTP_PROXY_URL`/`DISCORD_HTTP_PROXY_USE_HTTP`
+/// environment variables. Absent `DISCORD_HTTP_PROXY_URL`, behavior is
+/// unchanged: the REST client talks to discord.com directly.
+pub fn env_discord_http_proxy() -> Option<(String, bool)> {
+  discord_http_proxy_from(
+    std::env::var("DISCORD_HTTP_PROXY_URL").ok(),
+    std::env::var("DISCORD_HTTP_PROXY_USE_HTTP").ok()
+  )
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -53,5 +77,26 @@ mod tests {
   #[test]
   fn invalid_proxy_url_is_rejected() {
     assert!(build_request_client(Some("not a url"), "").is_err());
+  }
+
+  #[test]
+  fn no_discord_http_proxy_url_means_no_proxy() {
+    assert_eq!(discord_http_proxy_from(None, Some("true".into())), None);
+  }
+
+  #[test]
+  fn discord_http_proxy_defaults_to_https() {
+    assert_eq!(
+      discord_http_proxy_from(Some("proxy.internal".into()), None),
+      Some(("proxy.internal".into(), false))
+    );
+  }
+
+  #[test]
+  fn discord_http_proxy_use_http_is_parsed() {
+    assert_eq!(
+      discord_http_proxy_from(Some("proxy.internal".into()), Some("true".into())),
+      Some(("proxy.internal".into(), true))
+    );
   }
 }

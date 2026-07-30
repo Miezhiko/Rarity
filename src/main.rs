@@ -59,9 +59,12 @@ async fn main() -> anyhow::Result<()> {
     Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT,
   );
 
-  let http = ClientBuilder::new()
-                .token(options::CONFIG.discord.clone())
-                .build();
+  let mut http_builder = ClientBuilder::new()
+                .token(options::CONFIG.discord.clone());
+  if let Some((proxy_url, use_http)) = proxy::env_discord_http_proxy() {
+    http_builder = http_builder.proxy(proxy_url, use_http);
+  }
+  let http = http_builder.build();
 
   let cache = DefaultInMemoryCache::builder()
                 .resource_types(ResourceType::MESSAGE)
