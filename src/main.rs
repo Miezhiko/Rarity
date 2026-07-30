@@ -7,6 +7,7 @@ mod options;
 mod presence;
 mod handler;
 mod commands;
+mod proxy;
 
 use crate::{
   types::{
@@ -66,9 +67,10 @@ async fn main() -> anyhow::Result<()> {
                 .resource_types(ResourceType::MESSAGE)
                 .build();
 
-  let request_client = reqwest::Client::builder()
-                .pool_max_idle_per_host(0)
-                .build()?;
+  let request_client = proxy::build_request_client(
+    proxy::env_proxy_url().as_deref(),
+    &proxy::env_no_proxy()
+  )?;
 
   let allowed_guilds: HashSet<Id<GuildMarker>> = options::CONFIG.allowed_guilds.clone()
                 .into_iter()
