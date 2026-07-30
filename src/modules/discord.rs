@@ -20,13 +20,40 @@ pub const DISCORD_EMBED_TITLE_LIMIT: usize        = 256;
 pub const DISCORD_EMBED_DESCRIPTION_LIMIT: usize  = 4096;
 pub const DISCORD_EMBED_FOOTER_LIMIT: usize       = 2048;
 pub const DISCORD_EMBED_TOTAL_LIMIT: usize        = 6000;
-pub const MAX_CHUNK_SIZE: usize                   = 3800;  // Safety margin for UTF-16
 pub const TRUNCATION_BUFFER: usize                = 50;
 pub const CONTINUATION_SUFFIX: &str               = "...";
+
+// twilight-validate's own pre-send embed check sums each field's UTF-8
+// *byte* length (not codepoints/UTF-16 units) against this same 6000 limit,
+// so multi-byte text (Cyrillic, emoji, ...) can trip it well before the
+// UTF-16-based limits above do. Chunk descriptions to this byte budget and,
+// as a last-resort safety net in `send_embed_message`, also enforce it there
+// so a message is never rejected client-side after all this sanitizing.
+pub const MAX_CHUNK_BYTES: usize                  = 3600;
 
 // CRITICAL: Count UTF-16 code points, not characters
 fn count_utf16(text: &str) -> usize {
   text.encode_utf16().count()
+}
+
+fn truncate_to_byte_budget(text: &str, max_bytes: usize) -> String {
+  if max_bytes == 0 {
+    return String::new();
+  }
+
+  let mut result = String::new();
+  let mut byte_len = 0;
+
+  for ch in text.chars() {
+    let ch_len = ch.len_utf8();
+    if byte_len + ch_len > max_bytes {
+      break;
+    }
+    result.push(ch);
+    byte_len += ch_len;
+  }
+
+  result
 }
 
 // CRITICAL: Truncate by UTF-16 code points
@@ -293,9 +320,23 @@ pub async fn send_embed_message(
   }
   
   if desc_utf16 > DISCORD_EMBED_DESCRIPTION_LIMIT {
-    warn!("Truncating description from {} to {} UTF-16 code points", 
+    warn!("Truncating description from {} to {} UTF-16 code points",
           desc_utf16, DISCORD_EMBED_DESCRIPTION_LIMIT);
     sanitized_description = safe_truncate(&sanitized_description, DISCORD_EMBED_DESCRIPTION_LIMIT);
+  }
+
+  // twilight-validate's pre-send check adds up UTF-8 *byte* length (not
+  // UTF-16 units) across title + description + footer against
+  // DISCORD_EMBED_TOTAL_LIMIT, so heavily non-ASCII text (Cyrillic, emoji)
+  // can still be rejected here even though it passed the checks above.
+  let byte_budget = DISCORD_EMBED_TOTAL_LIMIT
+    .saturating_sub(sanitized_title.len())
+    .saturating_sub(footer_text.len());
+
+  if sanitized_description.len() > byte_budget {
+    warn!("Description is {} UTF-8 bytes, over the embed's combined byte budget of {}; truncating further",
+          sanitized_description.len(), byte_budget);
+    sanitized_description = truncate_to_byte_budget(&sanitized_description, byte_budget);
   }
 
   // Validate
@@ -337,10 +378,43 @@ pub async fn send_embed_message(
       }
       Err(e) => {
         error!("Failed to send embed message: {}", e);
-        error!("Final UTF-16 counts - Title: {}, Description: {}", 
+        error!("Final UTF-16 counts - Title: {}, Description: {}",
                count_utf16(&sanitized_title),
                count_utf16(&sanitized_description));
         Err(e.into())
       }
     }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn truncate_to_byte_budget_respects_multibyte_boundaries() {
+    let text = "Привет мир"; // Cyrillic: 2 bytes per char in UTF-8
+    let truncated = truncate_to_byte_budget(text, 7);
+
+    assert!(truncated.len() <= 7);
+    assert!(text.starts_with(&truncated));
+  }
+
+  #[test]
+  fn truncate_to_byte_budget_zero_is_empty() {
+    assert_eq!(truncate_to_byte_budget("hello", 0), String::new());
+  }
+
+  #[test]
+  fn truncate_to_byte_budget_never_exceeds_budget() {
+    let text = "п".repeat(50); // each 'п' is 2 bytes in UTF-8
+    for budget in 0..=text.len() {
+      assert!(truncate_to_byte_budget(&text, budget).len() <= budget);
+    }
+  }
+
+  #[test]
+  fn truncate_to_byte_budget_keeps_whole_string_when_it_fits() {
+    let text = "Привет";
+    assert_eq!(truncate_to_byte_budget(text, text.len()), text);
+  }
 }
