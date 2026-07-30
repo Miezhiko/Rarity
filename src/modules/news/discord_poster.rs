@@ -120,22 +120,32 @@ impl DiscordPoster {
     result
   }
 
-  async fn send_chunked_message(
-    state: &State,
-    channel_id: Id<ChannelMarker>,
-    title: &str,
-    description: &str,
-    timestamp: Option<i64>
-  ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+  /// Splits `description` into chunks by UTF-8 byte length, not char count:
+  /// Discord (via twilight-validate) limits the embed's combined UTF-8 byte
+  /// length, so a byte budget is what actually keeps non-ASCII text
+  /// (Cyrillic, emoji, ...) from being rejected. Continuation chunks get
+  /// `CONTINUATION_SUFFIX` appended.
+  fn split_into_chunks(description: &str) -> Vec<String> {
     let mut chunks = Vec::new();
     let chars: Vec<char> = description.chars().collect();
     let mut current_pos = 0;
-    
+
     while current_pos < chars.len() {
-      let remaining = chars.len() - current_pos;
-      let chunk_size = std::cmp::min(MAX_CHUNK_SIZE, remaining);
-      let mut end_pos = current_pos + chunk_size;
-      
+      let mut end_pos = current_pos;
+      let mut chunk_bytes = 0;
+      while end_pos < chars.len() {
+        let ch_bytes = chars[end_pos].len_utf8();
+        if chunk_bytes + ch_bytes > MAX_CHUNK_BYTES {
+          break;
+        }
+        chunk_bytes += ch_bytes;
+        end_pos += 1;
+      }
+      // Guarantee forward progress even if a single char exceeds the budget
+      if end_pos == current_pos {
+        end_pos = current_pos + 1;
+      }
+
       // Try to break at word boundary if not at the end
       if end_pos < chars.len() {
         let search_start = std::cmp::max(current_pos, end_pos.saturating_sub(TRUNCATION_BUFFER));
@@ -143,21 +153,33 @@ impl DiscordPoster {
           end_pos = search_start + space_pos;
         }
       }
-      
+
       let mut chunk: String = chars[current_pos..end_pos].iter().collect();
-      
+
       if end_pos < chars.len() {
         chunk.push_str(CONTINUATION_SUFFIX);
       }
-      
+
       chunks.push(chunk);
       current_pos = end_pos;
-      
+
       // Skip whitespace at the beginning of next chunk
       while current_pos < chars.len() && chars[current_pos].is_whitespace() {
         current_pos += 1;
       }
     }
+
+    chunks
+  }
+
+  async fn send_chunked_message(
+    state: &State,
+    channel_id: Id<ChannelMarker>,
+    title: &str,
+    description: &str,
+    timestamp: Option<i64>
+  ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let chunks = Self::split_into_chunks(description);
 
     let first_description = chunks.first().unwrap_or(&String::new()).clone();
     info!("Sending first chunk with title length: {}, description length: {}", title.chars().count(), first_description.chars().count());
@@ -195,5 +217,58 @@ impl DiscordPoster {
     }
 
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn long_cyrillic_text_is_split_into_multiple_chunks() {
+    let sentence = "Это тестовое предложение на русском языке для проверки разбиения. ";
+    let description = sentence.repeat(200);
+
+    let chunks = DiscordPoster::split_into_chunks(&description);
+
+    assert!(chunks.len() > 1, "expected the text to be split into multiple chunks");
+  }
+
+  #[test]
+  fn every_chunk_stays_under_the_byte_budget() {
+    let sentence = "Это тестовое предложение на русском языке для проверки разбиения. ";
+    let description = sentence.repeat(200);
+
+    for chunk in DiscordPoster::split_into_chunks(&description) {
+      assert!(
+        chunk.len() <= MAX_CHUNK_BYTES + CONTINUATION_SUFFIX.len(),
+        "chunk is {} UTF-8 bytes, over the {} byte budget",
+        chunk.len(), MAX_CHUNK_BYTES
+      );
+    }
+  }
+
+  #[test]
+  fn chunking_preserves_word_sequence() {
+    let sentence = "Съешь ещё этих мягких французских булок да выпей же чаю. ";
+    let description = sentence.repeat(150);
+
+    let chunks = DiscordPoster::split_into_chunks(&description);
+    assert!(chunks.len() > 1);
+
+    let rejoined = chunks.iter()
+      .map(|c| c.trim_end_matches(CONTINUATION_SUFFIX))
+      .collect::<Vec<_>>()
+      .join(" ");
+
+    let original_words: Vec<&str> = description.split_whitespace().collect();
+    let rejoined_words: Vec<&str> = rejoined.split_whitespace().collect();
+    assert_eq!(original_words, rejoined_words);
+  }
+
+  #[test]
+  fn short_ascii_text_is_a_single_chunk() {
+    let chunks = DiscordPoster::split_into_chunks("hello world");
+    assert_eq!(chunks, vec!["hello world".to_string()]);
   }
 }
