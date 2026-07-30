@@ -30,6 +30,7 @@ use twilight_cache_inmemory::{
 };
 
 use twilight_gateway::{
+  ConfigBuilder,
   EventTypeFlags,
   Intents, Shard,
   ShardId,
@@ -42,6 +43,20 @@ use twilight_model::id::{ Id, marker::GuildMarker };
 use tracing_subscriber::FmtSubscriber;
 use tracing::Level;
 
+/// Connects a new shard, using a self-hosted gateway proxy (via
+/// `DISCORD_GATEWAY_PROXY_URL`) instead of connecting to Discord directly
+/// when one is configured.
+fn connect_shard(id: ShardId) -> Shard {
+  let mut config_builder = ConfigBuilder::new(
+    options::CONFIG.discord.clone(),
+    Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT,
+  );
+  if let Some(proxy_url) = proxy::env_discord_gateway_proxy_url() {
+    config_builder = config_builder.proxy_url(proxy_url);
+  }
+  Shard::with_config(id, config_builder.build())
+}
+
 #[tokio::main(worker_threads=16)]
 async fn main() -> anyhow::Result<()> {
   rustls::crypto::ring::default_provider()
@@ -53,11 +68,7 @@ async fn main() -> anyhow::Result<()> {
     .finish();
   tracing::subscriber::set_global_default(subscriber)?;
 
-  let mut shard = Shard::new(
-    ShardId::ONE,
-    options::CONFIG.discord.clone(),
-    Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT,
-  );
+  let mut shard = connect_shard(ShardId::ONE);
 
   let mut http_builder = ClientBuilder::new()
                 .token(options::CONFIG.discord.clone());
@@ -118,10 +129,6 @@ async fn main() -> anyhow::Result<()> {
     tracing::warn!("Discord gateway disconnected, reconnecting in 5 seconds...");
     tokio::time::sleep(Duration::from_secs(5)).await;
 
-    shard = Shard::new(
-      ShardId::ONE,
-      options::CONFIG.discord.clone(),
-      Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT,
-    );
+    shard = connect_shard(ShardId::ONE);
   }
 }

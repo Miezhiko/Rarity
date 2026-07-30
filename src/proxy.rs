@@ -60,6 +60,14 @@ pub fn env_discord_http_proxy() -> Option<(String, bool)> {
   )
 }
 
+/// Reads the optional `DISCORD_GATEWAY_PROXY_URL` environment variable, used
+/// to point the gateway websocket connection at a self-hosted mirror (e.g.
+/// twilight-rs/gateway-proxy) instead of connecting to Discord directly.
+/// Absent this variable, behavior is unchanged.
+pub fn env_discord_gateway_proxy_url() -> Option<String> {
+  std::env::var("DISCORD_GATEWAY_PROXY_URL").ok()
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
