@@ -11,6 +11,11 @@ use tracing::{info, warn, error};
 
 const CONTINUATION_PREFIX: &str = " (часть ";
 
+// Some models occasionally produce a response that sanitizes down to
+// nothing (e.g. only markup/control characters). Retry with a different
+// model rather than posting an empty title or description.
+const MAX_EMPTY_RESPONSE_RETRIES: usize = 3;
+
 pub struct DiscordPoster;
 
 impl DiscordPoster {
@@ -55,18 +60,45 @@ impl DiscordPoster {
     };
 
     let gen_prompt = || async {
-      let rarity_response_title =
-        ollama::generate_ollama_response_with_secondary( &combined_titles
-                                                       , &options::CONFIG.title_mod_msg
-                                                       , state ).await?;
+      let mut tried_title_models: Vec<String> = Vec::new();
+      let mut title_no_q = String::new();
 
-      let rarity_response_desc =
-        read_ollama.generate_with_secondary_and_rag( &combined_descriptions
-                                                   , &options::CONFIG.desc_mod_msg
-                                                   , state ).await?;
+      for attempt in 1..=MAX_EMPTY_RESPONSE_RETRIES {
+        let (rarity_response_title, model_used) =
+          ollama::generate_ollama_response_with_secondary( &combined_titles
+                                                         , &options::CONFIG.title_mod_msg
+                                                         , state
+                                                         , &tried_title_models ).await?;
 
-      let mut title_no_q = sanitize_discord_text(&remove_quotes(&rarity_response_title));
-      let sanitized_description = sanitize_discord_text(&rarity_response_desc);
+        let candidate = sanitize_discord_text(&remove_quotes(&rarity_response_title));
+        if !candidate.trim().is_empty() {
+          title_no_q = candidate;
+          break;
+        }
+
+        warn!("Model {model_used} produced an empty title after sanitization (attempt {attempt}/{MAX_EMPTY_RESPONSE_RETRIES}), retrying with a different model");
+        tried_title_models.push(model_used);
+      }
+
+      let mut tried_desc_models: Vec<String> = Vec::new();
+      let mut sanitized_description = String::new();
+
+      for attempt in 1..=MAX_EMPTY_RESPONSE_RETRIES {
+        let (rarity_response_desc, model_used) =
+          read_ollama.generate_with_secondary_and_rag( &combined_descriptions
+                                                     , &options::CONFIG.desc_mod_msg
+                                                     , state
+                                                     , &tried_desc_models ).await?;
+
+        let candidate = sanitize_discord_text(&rarity_response_desc);
+        if !candidate.trim().is_empty() {
+          sanitized_description = candidate;
+          break;
+        }
+
+        warn!("Model {model_used} produced an empty description after sanitization (attempt {attempt}/{MAX_EMPTY_RESPONSE_RETRIES}), retrying with a different model");
+        tried_desc_models.push(model_used);
+      }
 
       // Safely truncate title if needed
       if title_no_q.chars().count() > DISCORD_EMBED_TITLE_LIMIT {

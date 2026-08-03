@@ -62,12 +62,16 @@ impl RagEnabledOllama {
     ollama::generate_ollama_response(&enhanced_prompt, state).await
   }
 
+  /// Returns the generated text along with the model that produced it, so
+  /// callers can retry with a different model (via `exclude_models`) if the
+  /// response turns out to be unusable (e.g. empty after sanitization).
   pub async fn generate_with_secondary_and_rag(
       &self,
       prompt: &str,
       secondary_prompt: &str,
       state: &State,
-  ) -> Result<String> {
+      exclude_models: &[String],
+  ) -> Result<(String, String)> {
     let api_docs = self.rag_system.get_api_documentation();
     let initial_prompt = format!(
       "{}\n\nAPI DOCUMENTATION:\n{}\n\nUSER REQUEST:\n{}",
@@ -76,17 +80,18 @@ impl RagEnabledOllama {
       prompt
     );
 
-    let llm_response = ollama::generate_ollama_response_with_secondary(
+    let (llm_response, model_used) = ollama::generate_ollama_response_with_secondary(
       &initial_prompt,
       &options::CONFIG.system_prompt,
-      state
+      state,
+      exclude_models
     ).await?;
-    
+
     let operations = self.rag_system.parse_operations(&llm_response);
-    
+
     if operations.is_empty() {
       debug!("No RAG operations found in LLM response");
-      return Ok(llm_response);
+      return Ok((llm_response, model_used));
     }
 
     info!("Found {} RAG operations in LLM response", operations.len());
@@ -96,7 +101,7 @@ impl RagEnabledOllama {
 
     if retrieved_context.trim().is_empty() {
       warn!("RAG operations executed but no context retrieved");
-      return Ok(llm_response);
+      return Ok((llm_response, model_used));
     }
 
     let enhanced_prompt = format!(
@@ -110,7 +115,8 @@ impl RagEnabledOllama {
     ollama::generate_ollama_response_with_secondary(
       &enhanced_prompt,
       &options::CONFIG.system_prompt,
-      state
+      state,
+      exclude_models
     ).await
   }
 

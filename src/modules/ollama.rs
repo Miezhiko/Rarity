@@ -96,34 +96,56 @@ fn remove_xml_tags(input: &str) -> Cow<'_, str> {
   XML_TAG_REGEX.replace_all(input, "")
 }
 
-fn get_random_model() -> &'static str {
-  let models = &options::CONFIG.models;
+/// Picks a random model from `models`, preferring ones not in `exclude`
+/// (used to retry with a different model after an unusable response). If
+/// every model has already been excluded, falls back to the full list
+/// rather than getting stuck.
+fn pick_random_model_from<'a>(models: &'a [String], exclude: &[String]) -> Option<&'a str> {
   if models.is_empty() {
-    warn!("No models configured, falling back to default");
-    return "mistral-small3.2:latest";
+    return None;
   }
-  let idx = rand::rng().random_range(0..models.len());
-  &models[idx]
+
+  let candidates: Vec<usize> = (0..models.len())
+    .filter(|&i| !exclude.iter().any(|e| e == &models[i]))
+    .collect();
+  let pool: Vec<usize> = if candidates.is_empty() { (0..models.len()).collect() } else { candidates };
+
+  let idx = pool[rand::rng().random_range(0..pool.len())];
+  Some(&models[idx])
+}
+
+fn pick_random_model(exclude: &[String]) -> &'static str {
+  pick_random_model_from(&options::CONFIG.models, exclude).unwrap_or_else(|| {
+    warn!("No models configured, falling back to default");
+    "mistral-small3.2:latest"
+  })
 }
 
 pub async fn generate_ollama_response( prompt: &str
                                      , state: &State ) -> Result<String> {
-  generate_ollama_response_with_retry(prompt, None, state, 0).await
+  generate_ollama_response_with_retry(prompt, None, state, 0, &[])
+    .await
+    .map(|(text, _model)| text)
 }
 
+/// Like [`generate_ollama_response`] but also returns which model produced
+/// the response, and accepts a list of models to avoid picking (e.g. ones
+/// that already produced an unusable response for this prompt).
 pub async fn generate_ollama_response_with_secondary( prompt: &str
                                                     , secondary_prompt: &str
-                                                    , state: &State ) -> Result<String> {
-  generate_ollama_response_with_retry(prompt, Some(secondary_prompt), state, 0).await
+                                                    , state: &State
+                                                    , exclude_models: &[String] ) -> Result<(String, String)> {
+  generate_ollama_response_with_retry(prompt, Some(secondary_prompt), state, 0, exclude_models).await
 }
 
 #[async_recursion]
 async fn generate_ollama_response_with_retry(
   prompt: &str,
   secondary_prompt: Option<&str>,
-  state: &State, 
-  attempt: u8
-) -> Result<String> {
+  state: &State,
+  attempt: u8,
+  exclude_models: &[String]
+) -> Result<(String, String)> {
   if attempt >= MAX_RESTART_ATTEMPTS {
     anyhow::bail!("Max restart attempts ({}) reached for Ollama", MAX_RESTART_ATTEMPTS);
   }
@@ -133,7 +155,8 @@ async fn generate_ollama_response_with_retry(
     OLLAMA_TIMEOUT,
     make_ollama_request( prompt
                        , secondary_prompt
-                       , state )
+                       , state
+                       , exclude_models )
   ).await;
 
   match result {
@@ -148,20 +171,21 @@ async fn generate_ollama_response_with_retry(
     Err(_) => {
       warn!( "Ollama request timed out after {} minutes, attempting restart"
            , OLLAMA_TIMEOUT.as_secs() / 60 );
-      
+
       restart_ollama().await?;
       info!("Ollama restarted successfully, retrying request");
       tokio::time::sleep(RESTART_DELAY).await;
-      generate_ollama_response_with_retry(prompt, secondary_prompt, state, attempt + 1).await
+      generate_ollama_response_with_retry(prompt, secondary_prompt, state, attempt + 1, exclude_models).await
     }
   }
 }
 
 async fn make_ollama_request( prompt: &str
                             , secondary_prompt: Option<&str>
-                            , state: &State ) -> Result<String> {
+                            , state: &State
+                            , exclude_models: &[String] ) -> Result<(String, String)> {
 
-  let selected_model = get_random_model();
+  let selected_model = pick_random_model(exclude_models);
   info!("Using model: {}", selected_model);
 
   let optimized_prompt = truncate_prompt_smartly( &options::CONFIG.system_prompt
@@ -211,7 +235,7 @@ async fn make_ollama_request( prompt: &str
     .context("Missing or invalid 'response' field in Ollama output")?;
 
   let processed = remove_xml_tags(generated_text);
-  Ok(processed.into_owned())
+  Ok((processed.into_owned(), selected_model.to_string()))
 }
 
 async fn restart_ollama() -> Result<()> {
@@ -300,4 +324,38 @@ pub async fn generate_ollama_with_chat(
 
   let chat_history = build_chat_history(messages.into_iter(), author, input);
   read_ollama.generate_smart(&chat_history, state).await
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn to_owned_strings(names: &[&str]) -> Vec<String> {
+    names.iter().map(|s| s.to_string()).collect()
+  }
+
+  #[test]
+  fn no_models_returns_none() {
+    assert_eq!(pick_random_model_from(&[], &[]), None);
+  }
+
+  #[test]
+  fn excludes_the_only_other_model_when_possible() {
+    let models = to_owned_strings(&["a", "b"]);
+    let exclude = to_owned_strings(&["a"]);
+
+    for _ in 0..20 {
+      assert_eq!(pick_random_model_from(&models, &exclude), Some("b"));
+    }
+  }
+
+  #[test]
+  fn falls_back_to_the_full_list_once_everything_is_excluded() {
+    let models = to_owned_strings(&["a", "b"]);
+    let exclude = to_owned_strings(&["a", "b"]);
+
+    for _ in 0..20 {
+      assert!(pick_random_model_from(&models, &exclude).is_some());
+    }
+  }
 }
