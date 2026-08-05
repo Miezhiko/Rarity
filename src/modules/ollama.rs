@@ -13,7 +13,7 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use tokio::time::timeout;
-use rand::Rng;
+use rand::RngExt;
 
 use tracing::{error, info, warn};
 use regex::Regex;

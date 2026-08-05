@@ -75,7 +75,7 @@ async fn handle_message(
   }
 
   match msg.content.split_whitespace().next() {
-    Some("~help")     => spawn(help(msg.0, Arc::clone(state))),
+    Some("~help")     => spawn(help(msg.message, Arc::clone(state))),
     Some("~imagine")  => {
       let prompt = msg.content.strip_prefix("~imagine ")
         .map(String::from)
@@ -91,7 +91,7 @@ async fn handle_message(
           Ok(())
         });
       } else {
-        spawn(imagine::imagine(msg.0, prompt, Arc::clone(state)));
+        spawn(imagine::imagine(msg.message, prompt, Arc::clone(state)));
       }
     }
     Some(_cmd)        => {
@@ -111,18 +111,18 @@ async fn handle_message(
       let msg_content = msg.content.clone();
       if let Some(rfs) = &msg.referenced_message {
         if rfs.author.id == options::CONFIG.bot {
-          spawn(reply::reply(msg.0, msg_content, author_name, Arc::clone(state)))
+          spawn(reply::reply(msg.message, msg_content, author_name, Arc::clone(state)))
         }
       } else if let Some((rtext, first)) = contains_mention(msg_content.as_str()) {
         if first {
           match rtext.as_str() {
-            "help"     => spawn(help(msg.0, Arc::clone(state))),
-            "knowlage" => spawn(knowlage::stats(msg.0, Arc::clone(state))),
-            "refresh"  => spawn(knowlage::refresh(msg.0, Arc::clone(state))),
-            _cmd       => spawn(reply::reply(msg.0, rtext, author_name, Arc::clone(state)))
+            "help"     => spawn(help(msg.message, Arc::clone(state))),
+            "knowlage" => spawn(knowlage::stats(msg.message, Arc::clone(state))),
+            "refresh"  => spawn(knowlage::refresh(msg.message, Arc::clone(state))),
+            _cmd       => spawn(reply::reply(msg.message, rtext, author_name, Arc::clone(state)))
           }
         } else {
-          spawn(reply::reply(msg.0, rtext, author_name, Arc::clone(state)))
+          spawn(reply::reply(msg.message, rtext, author_name, Arc::clone(state)))
         }
       } else {
         let chance = rand::random::<f32>();
@@ -133,7 +133,7 @@ async fn handle_message(
             &RequestReactionType::Unicode { name: HEART }
           )
           .await?;
-          spawn(speak::speak( msg.0
+          spawn(speak::speak( msg.message
                             , msg_content
                             , author_name
                             , Arc::clone(state)) )
