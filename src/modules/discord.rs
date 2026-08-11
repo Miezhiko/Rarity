@@ -36,6 +36,14 @@ fn count_utf16(text: &str) -> usize {
   text.encode_utf16().count()
 }
 
+/// Shortens a model name for display in an embed footer, e.g.
+/// "glm-4.7-flash:latest" -> "glm-4.7-flash". Tags other than "latest"
+/// (like "gemma4:e2b") are kept since they're part of what identifies the
+/// model.
+fn compact_model_name(model: &str) -> &str {
+  model.strip_suffix(":latest").unwrap_or(model)
+}
+
 fn truncate_to_byte_budget(text: &str, max_bytes: usize) -> String {
   if max_bytes == 0 {
     return String::new();
@@ -291,7 +299,8 @@ pub async fn send_embed_message(
   channel_id: Id<ChannelMarker>,
   title: &str,
   description: &str,
-  timestamp: Option<i64>
+  timestamp: Option<i64>,
+  model_used: Option<&str>
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   let mut sanitized_title = sanitize_discord_text(title);
   let mut sanitized_description = sanitize_discord_text(description);
@@ -310,7 +319,10 @@ pub async fn send_embed_message(
     return Err("Cannot send embed with no content".into());
   }
   
-  let footer_text = format!("{} 💎 v{}", options::CONFIG.footer_text, options::VERSION);
+  let footer_text = match model_used {
+    Some(model) => format!("{} 💎 v{} · 🤖 {}", options::CONFIG.footer_text, options::VERSION, compact_model_name(model)),
+    None        => format!("{} 💎 v{}", options::CONFIG.footer_text, options::VERSION),
+  };
 
   // Truncate using UTF-16 counts
   if title_utf16 > DISCORD_EMBED_TITLE_LIMIT {
@@ -389,6 +401,22 @@ pub async fn send_embed_message(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn compact_model_name_strips_latest_tag() {
+    assert_eq!(compact_model_name("glm-4.7-flash:latest"), "glm-4.7-flash");
+    assert_eq!(compact_model_name("hermes3:latest"), "hermes3");
+  }
+
+  #[test]
+  fn compact_model_name_keeps_other_tags() {
+    assert_eq!(compact_model_name("gemma4:e2b"), "gemma4:e2b");
+  }
+
+  #[test]
+  fn compact_model_name_leaves_untagged_names_alone() {
+    assert_eq!(compact_model_name("mistral-small3.2"), "mistral-small3.2");
+  }
 
   #[test]
   fn truncate_to_byte_budget_respects_multibyte_boundaries() {

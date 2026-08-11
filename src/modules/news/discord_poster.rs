@@ -82,6 +82,7 @@ impl DiscordPoster {
 
       let mut tried_desc_models: Vec<String> = Vec::new();
       let mut sanitized_description = String::new();
+      let mut desc_model_used = String::new();
 
       for attempt in 1..=MAX_EMPTY_RESPONSE_RETRIES {
         let (rarity_response_desc, model_used) =
@@ -93,6 +94,7 @@ impl DiscordPoster {
         let candidate = sanitize_discord_text(&rarity_response_desc);
         if !candidate.trim().is_empty() {
           sanitized_description = candidate;
+          desc_model_used = model_used;
           break;
         }
 
@@ -120,14 +122,16 @@ impl DiscordPoster {
                                   , channel_id
                                   , &title_no_q
                                   , &sanitized_description
-                                  , timestamp ).await?;
+                                  , timestamp
+                                  , &desc_model_used ).await?;
       } else {
         info!("Sending single message with title length: {}, description length: {}", title_no_q.chars().count(), sanitized_description.chars().count());
         match send_embed_message( state
                                 , channel_id
                                 , &title_no_q
                                 , &sanitized_description
-                                , timestamp ).await {
+                                , timestamp
+                                , Some(&desc_model_used) ).await {
           Ok(_) => info!("Single message sent successfully"),
           Err(e) => {
             error!("Failed to send single message: {}. Embed content: title='{}', description='{}'",
@@ -209,14 +213,15 @@ impl DiscordPoster {
     channel_id: Id<ChannelMarker>,
     title: &str,
     description: &str,
-    timestamp: Option<i64>
+    timestamp: Option<i64>,
+    model_used: &str
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let chunks = Self::split_into_chunks(description);
 
     let first_description = chunks.first().unwrap_or(&String::new()).clone();
     info!("Sending first chunk with title length: {}, description length: {}", title.chars().count(), first_description.chars().count());
-    
-    match send_embed_message(state, channel_id, title, &first_description, timestamp).await {
+
+    match send_embed_message(state, channel_id, title, &first_description, timestamp, Some(model_used)).await {
       Ok(_) => info!("First chunk sent successfully"),
       Err(e) => {
         error!("Failed to send first chunk: {}", e);
@@ -239,7 +244,8 @@ impl DiscordPoster {
                               , channel_id
                               , &safe_continuation_title
                               , chunk
-                              , timestamp ).await {
+                              , timestamp
+                              , Some(model_used) ).await {
         Ok(_) => info!("Continuation chunk {} sent successfully", i + 2),
         Err(e) => {
           error!("Failed to send continuation chunk {}: {}", i + 2, e);
