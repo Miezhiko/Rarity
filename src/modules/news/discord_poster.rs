@@ -102,6 +102,11 @@ impl DiscordPoster {
         tried_desc_models.push(model_used);
       }
 
+      if sanitized_description.trim().is_empty() {
+        error!("Description generation produced empty output {MAX_EMPTY_RESPONSE_RETRIES} times in a row, skipping this news post rather than sending an empty body");
+        return Ok(());
+      }
+
       // Safely truncate title if needed
       if title_no_q.chars().count() > DISCORD_EMBED_TITLE_LIMIT {
         title_no_q = safe_truncate(&title_no_q, DISCORD_EMBED_TITLE_LIMIT);
