@@ -25,6 +25,12 @@ const MAX_RESTART_ATTEMPTS: u8      = 3;
 const RESTART_DELAY: Duration       = Duration::from_secs(10);
 const MAX_CONTEXT_TOKENS: usize     = 4096;  // Conservative estimate for mistral-small3.2
 const RESPONSE_TOKENS: usize        = 1000;  // Reserve tokens for response
+// Floor for num_predict: token estimation is approximate (word-boundary
+// truncation vs. the model's real tokenizer), so the budget can still come
+// out razor-thin or at 0 even after truncate_prompt_smartly. Asking for 0
+// tokens silently produces an empty response instead of an error, so never
+// go below this.
+const MIN_RESPONSE_TOKENS: usize    = 256;
 
 static XML_TAG_REGEX: LazyLock<Regex> = LazyLock::new(|| {
   Regex::new(r"<[^>]+>").expect("Failed to compile XML tag regex")
@@ -58,37 +64,41 @@ fn truncate_at_word_boundary(text: &str, max_chars: usize) -> String {
   chars[..end_pos].iter().collect::<String>() + "..."
 }
 
+fn assemble_prompt(system_prompt: &str, secondary_prompt: Option<&str>, user_prompt: &str) -> String {
+  match secondary_prompt {
+    Some(secondary) => format!("{}\n\n{}\n\n{}", system_prompt, secondary, user_prompt),
+    None            => format!("{}\n\n{}", system_prompt, user_prompt)
+  }
+}
+
 fn truncate_prompt_smartly(system_prompt: &str, secondary_prompt: Option<&str>, user_prompt: &str) -> String {
   let system_tokens     = estimate_tokens(system_prompt);
   let secondary_tokens  = secondary_prompt.map(estimate_tokens).unwrap_or(0);
   let user_tokens       = estimate_tokens(user_prompt);
   let total_tokens      = system_tokens + secondary_tokens + user_tokens;
-  
+
   let available_tokens = MAX_CONTEXT_TOKENS.saturating_sub(RESPONSE_TOKENS);
-  
-  let full_prompt = match secondary_prompt {
-    Some(secondary) => format!("{}\n\n{}\n\n{}", system_prompt, secondary, user_prompt),
-    None            => format!("{}\n\n{}", system_prompt, user_prompt)
-  };
-  
+
   if total_tokens <= available_tokens {
-    return full_prompt;
+    return assemble_prompt(system_prompt, secondary_prompt, user_prompt);
   }
-  
+
   warn!("Prompt too long ({} tokens), truncating user content", total_tokens);
-  
+
+  // Truncate only the user-supplied portion, not the whole assembled
+  // prompt: truncating the concatenation and then re-prepending
+  // system_prompt/secondary_prompt would duplicate them and could push the
+  // final prompt back over budget (previously seen making it *longer* than
+  // before truncation), which starves num_predict down to ~0 downstream.
   let max_user_tokens = available_tokens.saturating_sub(system_tokens + secondary_tokens);
   let max_user_chars  = max_user_tokens * 4;
-  let truncated_user  = truncate_at_word_boundary(&full_prompt, max_user_chars);
-  
-  info!("Truncated prompt from {} to {} characters", 
-        user_prompt.chars().count(), 
+  let truncated_user  = truncate_at_word_boundary(user_prompt, max_user_chars);
+
+  info!("Truncated user content from {} to {} characters",
+        user_prompt.chars().count(),
         truncated_user.chars().count());
-  
-  match secondary_prompt {
-    Some(secondary) => format!("{}\n\n{}\n\n{}", system_prompt, secondary, truncated_user),
-    None            => format!("{}\n\n{}", system_prompt, truncated_user)
-  }
+
+  assemble_prompt(system_prompt, secondary_prompt, &truncated_user)
 }
 
 #[inline]
@@ -197,7 +207,7 @@ async fn make_ollama_request( prompt: &str
         estimated_tokens);
 
   let available_for_response = MAX_CONTEXT_TOKENS.saturating_sub(estimated_tokens);
-  let num_predict = std::cmp::min(4096, available_for_response.saturating_sub(100));
+  let num_predict = std::cmp::min(4096, available_for_response.saturating_sub(100)).max(MIN_RESPONSE_TOKENS);
   
   let request_body = json!({
     "model": selected_model,
@@ -357,5 +367,41 @@ mod tests {
     for _ in 0..20 {
       assert!(pick_random_model_from(&models, &exclude).is_some());
     }
+  }
+
+  #[test]
+  fn truncate_prompt_smartly_leaves_short_prompts_untouched() {
+    let result = truncate_prompt_smartly("SYSTEM", Some("SECONDARY"), "short user prompt");
+    assert_eq!(result, "SYSTEM\n\nSECONDARY\n\nshort user prompt");
+  }
+
+  #[test]
+  fn truncate_prompt_smartly_does_not_duplicate_system_or_secondary_prompt() {
+    // Long enough to force the truncation branch.
+    let user_prompt = "word ".repeat(5000);
+
+    let result = truncate_prompt_smartly("SYSTEM_MARKER", Some("SECONDARY_MARKER"), &user_prompt);
+
+    // Previously, truncating the already-assembled prompt and then
+    // re-prepending system/secondary duplicated both of them.
+    assert_eq!(result.matches("SYSTEM_MARKER").count(), 1);
+    assert_eq!(result.matches("SECONDARY_MARKER").count(), 1);
+  }
+
+  #[test]
+  fn truncate_prompt_smartly_stays_within_the_response_token_budget() {
+    let user_prompt = "word ".repeat(5000);
+    let available_tokens = MAX_CONTEXT_TOKENS.saturating_sub(RESPONSE_TOKENS);
+
+    let result = truncate_prompt_smartly("SYSTEM_MARKER", Some("SECONDARY_MARKER"), &user_prompt);
+
+    // A prompt that still exceeds the context budget after "truncation"
+    // starves num_predict down toward 0 in make_ollama_request, which
+    // silently produces an empty response instead of an error.
+    assert!(
+      estimate_tokens(&result) <= available_tokens,
+      "truncated prompt is {} estimated tokens, over the {} token budget",
+      estimate_tokens(&result), available_tokens
+    );
   }
 }
