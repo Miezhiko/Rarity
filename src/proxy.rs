@@ -4,14 +4,27 @@
 
 use reqwest::{ Client, NoProxy, Proxy };
 
-fn env_first(names: &[&str]) -> Option<String> {
-  names.iter().find_map(|name| std::env::var(name).ok())
+fn pick_first(names: &[&str], lookup: impl Fn(&str) -> Option<String>) -> Option<String> {
+  names.iter().find_map(|name| lookup(name))
 }
 
-/// Reads the conventional proxy environment variables, preferring the most
-/// specific one set.
+fn env_first(names: &[&str]) -> Option<String> {
+  pick_first(names, |name| std::env::var(name).ok())
+}
+
+/// Reads the conventional proxy environment variables.
+///
+/// HTTPS_PROXY/HTTP_PROXY are checked before ALL_PROXY (matching curl's own
+/// precedence): our client only ever makes plain HTTP(S) requests, and
+/// ALL_PROXY conventionally holds a URL for protocols an HTTP(S)-only client
+/// can't necessarily use -- most commonly `socks5://`. VPN tools (e.g.
+/// Hiddify) often set ALL_PROXY to a SOCKS URL while also exposing the same
+/// port as an HTTP proxy via HTTP(S)_PROXY, so preferring ALL_PROXY here
+/// previously meant we'd pick a scheme our client can't actually speak and
+/// fail every outbound request with a generic "error sending request",
+/// even though the very same proxy worked fine over HTTP.
 pub fn env_proxy_url() -> Option<String> {
-  env_first(&["ALL_PROXY", "all_proxy", "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"])
+  env_first(&["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"])
 }
 
 /// Reads the conventional `NO_PROXY` environment variable, if any.
@@ -85,6 +98,30 @@ mod tests {
   #[test]
   fn invalid_proxy_url_is_rejected() {
     assert!(build_request_client(Some("not a url"), "").is_err());
+  }
+
+  #[test]
+  fn prefers_https_proxy_over_all_proxy() {
+    // ALL_PROXY is conventionally a socks5:// URL our HTTP(S)-only client
+    // can't necessarily use, while HTTPS_PROXY often points at the very
+    // same proxy over plain HTTP -- pick that one.
+    let vars = [
+      ("ALL_PROXY", "socks5://127.0.0.1:12334"),
+      ("HTTPS_PROXY", "http://127.0.0.1:12334"),
+    ];
+    let lookup = |name: &str| vars.iter().find(|(n, _)| *n == name).map(|(_, v)| v.to_string());
+
+    let names = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"];
+    assert_eq!(pick_first(&names, lookup), Some("http://127.0.0.1:12334".to_string()));
+  }
+
+  #[test]
+  fn falls_back_to_all_proxy_when_nothing_else_is_set() {
+    let vars = [("ALL_PROXY", "socks5://127.0.0.1:12334")];
+    let lookup = |name: &str| vars.iter().find(|(n, _)| *n == name).map(|(_, v)| v.to_string());
+
+    let names = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"];
+    assert_eq!(pick_first(&names, lookup), Some("socks5://127.0.0.1:12334".to_string()));
   }
 
   #[test]

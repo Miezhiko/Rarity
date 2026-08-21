@@ -47,7 +47,7 @@ features = ["builder"]
 
 [dependencies.reqwest]
 version = "*"
-features = ["json", "blocking", "gzip", "brotli", "deflate"]
+features = ["json", "blocking", "gzip", "brotli", "deflate", "socks"]
 
 [dependencies.tokio]
 default-features = false
