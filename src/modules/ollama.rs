@@ -91,14 +91,38 @@ fn truncate_prompt_smartly(system_prompt: &str, secondary_prompt: Option<&str>, 
   // final prompt back over budget (previously seen making it *longer* than
   // before truncation), which starves num_predict down to ~0 downstream.
   let max_user_tokens = available_tokens.saturating_sub(system_tokens + secondary_tokens);
-  let max_user_chars  = max_user_tokens * 4;
-  let truncated_user  = truncate_at_word_boundary(user_prompt, max_user_chars);
 
-  info!("Truncated user content from {} to {} characters",
+  // A flat "4 chars per token" ratio is only accurate for English; BPE
+  // tokenizers split Cyrillic and other non-Latin scripts into far more
+  // tokens per character, which previously left the "truncated" prompt
+  // still over budget. Use the ratio actually measured for this text as a
+  // starting point, then converge on the real tokenizer's count for the
+  // *fully assembled* prompt (separators between the three parts also cost
+  // tokens, so checking user_prompt alone isn't quite enough).
+  let user_chars = user_prompt.chars().count().max(1);
+  let chars_per_token = user_chars as f64 / user_tokens.max(1) as f64;
+  let mut max_user_chars = ((max_user_tokens as f64) * chars_per_token) as usize;
+  let mut truncated_user = truncate_at_word_boundary(user_prompt, max_user_chars);
+  let mut assembled = assemble_prompt(system_prompt, secondary_prompt, &truncated_user);
+
+  for _ in 0..5 {
+    let assembled_tokens = estimate_tokens(&assembled);
+    if assembled_tokens <= available_tokens || max_user_chars == 0 {
+      break;
+    }
+    let overage_tokens = assembled_tokens - available_tokens;
+    let shrink_chars = ((overage_tokens as f64) * chars_per_token).ceil() as usize + 1;
+    max_user_chars = max_user_chars.saturating_sub(shrink_chars);
+    truncated_user = truncate_at_word_boundary(user_prompt, max_user_chars);
+    assembled = assemble_prompt(system_prompt, secondary_prompt, &truncated_user);
+  }
+
+  info!("Truncated user content from {} to {} characters ({} tokens total)",
         user_prompt.chars().count(),
-        truncated_user.chars().count());
+        truncated_user.chars().count(),
+        estimate_tokens(&assembled));
 
-  assemble_prompt(system_prompt, secondary_prompt, &truncated_user)
+  assembled
 }
 
 #[inline]
@@ -401,6 +425,24 @@ mod tests {
     assert!(
       estimate_tokens(&result) <= available_tokens,
       "truncated prompt is {} estimated tokens, over the {} token budget",
+      estimate_tokens(&result), available_tokens
+    );
+  }
+
+  #[test]
+  fn truncate_prompt_smartly_stays_within_budget_for_cyrillic_text() {
+    // A flat "4 chars per token" ratio badly underestimates Cyrillic token
+    // usage (BPE tokenizers split non-Latin scripts far more aggressively),
+    // which previously left the "truncated" prompt still over budget.
+    let sentence = "Пограничная охрана нашла тоннель на границе с соседней страной. ";
+    let user_prompt = sentence.repeat(400);
+    let available_tokens = MAX_CONTEXT_TOKENS.saturating_sub(RESPONSE_TOKENS);
+
+    let result = truncate_prompt_smartly("SYSTEM_MARKER", Some("SECONDARY_MARKER"), &user_prompt);
+
+    assert!(
+      estimate_tokens(&result) <= available_tokens,
+      "truncated Cyrillic prompt is {} estimated tokens, over the {} token budget",
       estimate_tokens(&result), available_tokens
     );
   }
