@@ -74,15 +74,21 @@ impl RagEnabledOllama {
   ) -> Result<(String, String)> {
     let api_docs = self.rag_system.get_api_documentation();
     let initial_prompt = format!(
-      "{}\n\nAPI DOCUMENTATION:\n{}\n\nUSER REQUEST:\n{}",
-      secondary_prompt,
+      "API DOCUMENTATION:\n{}\n\nUSER REQUEST:\n{}",
       api_docs,
       prompt
     );
 
+    // `secondary_prompt` (e.g. desc_mod_msg) must be passed through as-is
+    // here, not folded into `initial_prompt`: only the `prompt` argument to
+    // generate_ollama_response_with_secondary is subject to truncation when
+    // the assembled prompt is too long, and system_prompt is already added
+    // automatically -- passing it again here as secondary_prompt duplicated
+    // it and pushed the real secondary_prompt (the task instructions) into
+    // the truncatable region instead.
     let (llm_response, model_used) = ollama::generate_ollama_response_with_secondary(
       &initial_prompt,
-      &options::CONFIG.system_prompt,
+      secondary_prompt,
       state,
       exclude_models
     ).await?;
@@ -114,7 +120,7 @@ impl RagEnabledOllama {
 
     ollama::generate_ollama_response_with_secondary(
       &enhanced_prompt,
-      &options::CONFIG.system_prompt,
+      secondary_prompt,
       state,
       exclude_models
     ).await
