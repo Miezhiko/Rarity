@@ -4,6 +4,7 @@ use crate::{
 };
 
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::LazyLock;
 use regex::Regex;
 use tracing::{info, error, warn};
 use twilight_model::id::{Id, marker::{ChannelMarker}};
@@ -30,6 +31,16 @@ pub const CONTINUATION_SUFFIX: &str               = "...";
 // as a last-resort safety net in `send_embed_message`, also enforce it there
 // so a message is never rejected client-side after all this sanitizing.
 pub const MAX_CHUNK_BYTES: usize                  = 3600;
+
+// Matches a whole string wrapped in a single pair of quote marks (optionally
+// bold), so it can be unwrapped -- e.g. a title the model wrapped in « »
+// even though Discord already renders it as a title. Opening/closing marks
+// are matched independently (not as a backreferenced pair) since typographic
+// quotes are directional: "..."  '...'  «...»  „...“  „...”
+static QUOTE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+  Regex::new(r#"^\s*(\*\*)?["'«„‚](.*?)["'»"”'’](\*\*)?\s*$"#)
+    .expect("Failed to compile quote-stripping regex")
+});
 
 // CRITICAL: Count UTF-16 code points, not characters
 fn count_utf16(text: &str) -> usize {
@@ -83,9 +94,8 @@ fn truncate_utf16(text: &str, max_utf16_len: usize) -> String {
 
 pub fn remove_quotes(s: &str) -> String {
   let mut result = s.to_string();
-  let quote_regex = Regex::new(r#"^\s*(\*\*)?["'](.*?)["'](\*\*)?\s*$"#).unwrap();
-  
-  if let Some(captures) = quote_regex.captures(&result) {
+
+  if let Some(captures) = QUOTE_REGEX.captures(&result) {
     let has_bold_start = captures.get(1).is_some();
     let content = captures.get(2).map_or("", |m| m.as_str());
     let has_bold_end = captures.get(3).is_some();
@@ -416,6 +426,29 @@ mod tests {
   #[test]
   fn compact_model_name_leaves_untagged_names_alone() {
     assert_eq!(compact_model_name("mistral-small3.2"), "mistral-small3.2");
+  }
+
+  #[test]
+  fn remove_quotes_strips_guillemets() {
+    assert_eq!(
+      remove_quotes("«Скандальные хроники власти: от розыска до награды»"),
+      "Скандальные хроники власти: от розыска до награды"
+    );
+  }
+
+  #[test]
+  fn remove_quotes_strips_straight_quotes() {
+    assert_eq!(remove_quotes("\"Some title\""), "Some title");
+  }
+
+  #[test]
+  fn remove_quotes_leaves_unquoted_text_alone() {
+    assert_eq!(remove_quotes("Just a title"), "Just a title");
+  }
+
+  #[test]
+  fn remove_quotes_keeps_bold_wrapping() {
+    assert_eq!(remove_quotes("**«Bold title»**"), "**Bold title**");
   }
 
   #[test]
