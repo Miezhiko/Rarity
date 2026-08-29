@@ -721,9 +721,9 @@ dependencies = [
 
 [[package]]
 name = "granit-parser"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ccd1be9ebf2bd5520dbfcfb72b70ef492f654061299a097056f3e73410e38ec"
+checksum = "65ec0d45986cd51c847c75c5b69a00852c4fc84d0e5e79f041173f73437d0cdf"
 dependencies = [
  "arraydeque",
  "smallvec",
@@ -741,7 +741,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http 0.2.12",
- "indexmap 2.14.0",
+ "indexmap 2.14.1",
  "slab",
  "tokio",
  "tokio-util",
@@ -760,7 +760,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "http 1.5.0",
- "indexmap 2.14.0",
+ "indexmap 2.14.1",
  "slab",
  "tokio",
  "tokio-util",
@@ -916,9 +916,9 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "1.11.0"
+version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d22053281f852e11534f5198498373cbb59295120a20771d90f7ed1897490a72"
+checksum = "27b501faa50e7a26c3d3560ca625132f4078a17771f4810baf70475ae48cbe43"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -942,7 +942,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33ca68d021ef39cf6463ab54c1d0f5daf03377b70561305bb89a8f83aab66e0f"
 dependencies = [
  "http 1.5.0",
- "hyper 1.11.0",
+ "hyper 1.11.1",
  "hyper-util",
  "rustls",
  "rustls-platform-verifier",
@@ -976,7 +976,7 @@ dependencies = [
  "futures-util",
  "http 1.5.0",
  "http-body 1.1.0",
- "hyper 1.11.0",
+ "hyper 1.11.1",
  "ipnet",
  "libc",
  "percent-encoding",
@@ -1129,9 +1129,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.14.0"
+version = "2.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
+checksum = "07aa2048142242915a31d35844fb311e0e53fcca590c3a0a40dcf1b841fa09eb"
 dependencies = [
  "equivalent",
  "hashbrown 0.17.1",
@@ -1692,7 +1692,7 @@ dependencies = [
 
 [[package]]
 name = "rarity"
-version = "1.2.3"
+version = "1.2.4"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1814,7 +1814,7 @@ dependencies = [
  "http 1.5.0",
  "http-body 1.1.0",
  "http-body-util",
- "hyper 1.11.0",
+ "hyper 1.11.1",
  "hyper-rustls",
  "hyper-util",
  "js-sys",
@@ -2130,7 +2130,7 @@ checksum = "659d74d982f3ee009c27f34a1fc84d84828095d58ea210ce31705833188c8e27"
 dependencies = [
  "base64 0.22.1",
  "granit-parser",
- "indexmap 2.14.0",
+ "indexmap 2.14.1",
  "itoa",
  "num-traits",
  "regex",
@@ -2666,7 +2666,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 [[package]]
 name = "twilight-cache-inmemory"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#ae0d7d310086d1a61b9f01f89b7e43bcda3561d0"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#132304966d767f5eef83606fda451670ee24d8cb"
 dependencies = [
  "bitflags 2.13.1",
  "dashmap",
@@ -2677,7 +2677,7 @@ dependencies = [
 [[package]]
 name = "twilight-gateway"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#ae0d7d310086d1a61b9f01f89b7e43bcda3561d0"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#132304966d767f5eef83606fda451670ee24d8cb"
 dependencies = [
  "bitflags 2.13.1",
  "fastrand",
@@ -2697,7 +2697,7 @@ dependencies = [
 [[package]]
 name = "twilight-gateway-queue"
 version = "0.17.0"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#ae0d7d310086d1a61b9f01f89b7e43bcda3561d0"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#132304966d767f5eef83606fda451670ee24d8cb"
 dependencies = [
  "tokio",
  "tracing",
@@ -2706,13 +2706,13 @@ dependencies = [
 [[package]]
 name = "twilight-http"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#ae0d7d310086d1a61b9f01f89b7e43bcda3561d0"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#132304966d767f5eef83606fda451670ee24d8cb"
 dependencies = [
  "brotli-decompressor",
  "fastrand",
  "http 1.5.0",
  "http-body-util",
- "hyper 1.11.0",
+ "hyper 1.11.1",
  "hyper-rustls",
  "hyper-util",
  "percent-encoding",
@@ -2729,7 +2729,7 @@ dependencies = [
 [[package]]
 name = "twilight-http-ratelimiting"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#ae0d7d310086d1a61b9f01f89b7e43bcda3561d0"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#132304966d767f5eef83606fda451670ee24d8cb"
 dependencies = [
  "hashbrown 0.16.1",
  "tokio",
@@ -2740,7 +2740,7 @@ dependencies = [
 [[package]]
 name = "twilight-model"
 version = "0.17.1"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#ae0d7d310086d1a61b9f01f89b7e43bcda3561d0"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#132304966d767f5eef83606fda451670ee24d8cb"
 dependencies = [
  "bitflags 2.13.1",
  "serde",
@@ -2752,7 +2752,7 @@ dependencies = [
 [[package]]
 name = "twilight-util"
 version = "0.17.0"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#ae0d7d310086d1a61b9f01f89b7e43bcda3561d0"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#132304966d767f5eef83606fda451670ee24d8cb"
 dependencies = [
  "twilight-model",
  "twilight-validate",
@@ -2761,7 +2761,7 @@ dependencies = [
 [[package]]
 name = "twilight-validate"
 version = "0.17.0"
-source = "git+https://github.com/twilight-rs/twilight?branch=main#ae0d7d310086d1a61b9f01f89b7e43bcda3561d0"
+source = "git+https://github.com/twilight-rs/twilight?branch=main#132304966d767f5eef83606fda451670ee24d8cb"
 dependencies = [
  "twilight-model",
 ]
